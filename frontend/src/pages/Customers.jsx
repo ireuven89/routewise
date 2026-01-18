@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import {useState, useEffect, useCallback} from 'react';
 import { customersAPI } from '../api/client';
 import Layout from '../components/Layout';
 
@@ -10,19 +10,24 @@ const Customers = () => {
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
-        loadCustomers();
-    }, []);
+        loadCustomers().catch(console.error);
+    }, [loadCustomers]);
 
-    const loadCustomers = async () => {
+    const loadCustomers = useCallback(async () => {
         try {
+            setLoading(true);
             const response = await customersAPI.getAll(searchTerm);
-            setCustomers(response.data || []);
-            setLoading(false);
+            setCustomers(response.data);
         } catch (error) {
             console.error('Failed to load customers:', error);
+        } finally {
             setLoading(false);
         }
-    };
+    }, [searchTerm]);
+
+    useEffect(() => {
+        void loadCustomers(); // Using void to explicitly ignore the promise
+    }, [loadCustomers]);
 
     const handleCreate = async (customerData) => {
         try {
