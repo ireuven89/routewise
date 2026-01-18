@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: routewise-db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: your_password
+      POSTGRES_DB: routewise
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d  # Auto-run migrations!
+
+volumes:
+  postgres_data:
