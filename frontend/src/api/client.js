@@ -9,6 +9,7 @@ const apiClient = axios.create({
     },
 });
 
+
 // Add auth token to requests
 apiClient.interceptors.request.use(
     (config) => {
