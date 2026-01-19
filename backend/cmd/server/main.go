@@ -30,6 +30,7 @@ func main() {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "https://routewise-4zhxkcyia-aitzik89s-projects.vercel.app")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return

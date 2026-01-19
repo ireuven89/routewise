@@ -6,6 +6,7 @@ import (
 	"github.com/ireuven89/routewise/internal/models"
 	"github.com/ireuven89/routewise/internal/repository"
 	"github.com/ireuven89/routewise/pkg/utils"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -66,19 +67,22 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	// Hash password
 	if err := user.HashPassword(req.Password); err != nil {
+		log.Println("failed to create user: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 		return
 	}
 
 	// Save to database
 	if err := h.userRepo.Create(user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		log.Println("failed to create user: ", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user" + err.Error()})
 		return
 	}
 
 	// Generate JWT token
 	token, err := utils.GenerateToken(user.ID, user.Email)
 	if err != nil {
+		log.Println("failed to create user: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
