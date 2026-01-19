@@ -191,10 +191,10 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
         cancelled: 'bg-red-100 text-red-800',
     };
 
-    const getTechnicianName = (techId) => {
+/*    const getTechnicianName = (techId) => {
         const tech = technicians.find(t => t.id === techId);
         return tech ? tech.name : 'Unassigned';
-    };
+    };*/
 
     return (
         <li className="px-6 py-4 hover:bg-gray-50">
