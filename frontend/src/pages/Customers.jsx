@@ -9,10 +9,7 @@ const Customers = () => {
     const [editingCustomer, setEditingCustomer] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    useEffect(() => {
-        loadCustomers().catch(console.error);
-    }, [loadCustomers]);
-
+    // ✅ Define loadCustomers FIRST
     const loadCustomers = useCallback(async () => {
         try {
             setLoading(true);
@@ -25,8 +22,9 @@ const Customers = () => {
         }
     }, [searchTerm]);
 
+    // ✅ THEN use it in useEffect
     useEffect(() => {
-        void loadCustomers(); // Using void to explicitly ignore the promise
+        loadCustomers();
     }, [loadCustomers]);
 
     const handleCreate = async (customerData) => {
@@ -94,7 +92,6 @@ const Customers = () => {
                         placeholder="Search customers..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        onKeyUp={() => loadCustomers()}
                         className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-md"
                     />
                 </div>
@@ -204,7 +201,7 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
                             value={formData.name}
                             onChange={handleChange}
                             required
-                            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500"
                         />
                     </div>
 
@@ -216,7 +213,7 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
                             value={formData.phone}
                             onChange={handleChange}
                             required
-                            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500"
                         />
                     </div>
 
@@ -227,7 +224,7 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
                             name="email"
                             value={formData.email}
                             onChange={handleChange}
-                            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500"
                         />
                     </div>
 
@@ -240,7 +237,7 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
                             onChange={handleChange}
                             required
                             placeholder="123 Main St, City, State"
-                            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500"
                         />
                     </div>
 
@@ -251,7 +248,7 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
                             value={formData.notes}
                             onChange={handleChange}
                             rows={3}
-                            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500"
                         />
                     </div>
 

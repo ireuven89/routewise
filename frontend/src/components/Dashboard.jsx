@@ -88,19 +88,19 @@ const Dashboard = () => {
                     <h2 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <Link
-                            to="/jobs/new"
+                            to="/jobs"
                             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md text-center font-medium"
                         >
                             Create New Job
                         </Link>
                         <Link
-                            to="/customers/new"
+                            to="/customers"
                             className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-md text-center font-medium"
                         >
                             Add Customer
                         </Link>
                         <Link
-                            to="/technicians/new"
+                            to="/technicians"
                             className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-md text-center font-medium"
                         >
                             Add Technician
