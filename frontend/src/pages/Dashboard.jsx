@@ -83,7 +83,7 @@ const Dashboard = () => {
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
                     <Link
-                        to="/jobs/new"
+                        to="/jobs"
                         className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md"
                     >
                         <FaPlus className="mr-2" />
@@ -166,7 +166,7 @@ const Dashboard = () => {
                                             <FaCalendarCheck className="mx-auto h-12 w-12 text-gray-400 mb-3" />
                                             <p className="text-gray-500 text-sm">No jobs scheduled for today</p>
                                             <Link
-                                                to="/jobs/new"
+                                                to="/jobs"
                                                 className="mt-4 inline-flex items-center text-sm text-blue-600 hover:text-blue-700 font-medium"
                                             >
                                                 <FaPlus className="mr-1" />
