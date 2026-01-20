@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaCalendarAlt } from 'react-icons/fa';
-import {apiCall} from "../utils/api";
+import {authAPI} from "../api/client";
 
 const Register = () => {
     const navigate = useNavigate();
@@ -38,23 +38,20 @@ const Register = () => {
         setLoading(true);
 
         try {
-            const data = await apiCall('/api/v1/register', {
-                method: 'POST',
-                body: JSON.stringify({
-                    company_name: formData.companyName,
-                    email: formData.email,
-                    password: formData.password,
-                }),
+            const response = await authAPI.register({
+                company_name: formData.companyName,
+                email: formData.email,
+                password: formData.password,
             });
+            const data = response.data;
 
             localStorage.setItem('token', data.token);
             localStorage.setItem('user', JSON.stringify(data.user));
 
-            // Use hard reload to guarantee token is available
             window.location.href = '/dashboard';
 
         } catch (err) {
-            setError(err.message);
+            setError(err.response?.data?.error || err.message);
         } finally {
             setLoading(false);
         }
