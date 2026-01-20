@@ -1,0 +1,48 @@
+name: Deploy Backend to EC2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to EC2
+        env:
+          PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+        run: |
+          # Setup SSH
+          echo "$PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # Deploy via SSH
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} << 'ENDSSH'
+            cd ~/routewise/backend
+          
+            # Pull latest code
+            git pull origin main
+          
+            # Build new binary
+            go build -o routewise main.go
+          
+            # Restart service
+            sudo systemctl restart routewise
+          
+            # Check if service started successfully
+            sleep 3
+            sudo systemctl is-active --quiet routewise && echo "Deployment successful!" || echo "Deployment failed!"
+          ENDSSH
+          
+          # Cleanup
+          rm -f private_key.pem
