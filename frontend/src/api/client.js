@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
 const apiClient = axios.create({
     baseURL: API_BASE_URL,
@@ -8,7 +8,6 @@ const apiClient = axios.create({
         'Content-Type': 'application/json',
     },
 });
-
 
 // Add auth token to requests
 apiClient.interceptors.request.use(
@@ -39,44 +38,44 @@ apiClient.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-    register: (data) => apiClient.post('/register', data),
-    login: (data) => apiClient.post('/login', data),
-    getCurrentUser: () => apiClient.get('/me'),
+    register: (data) => apiClient.post('/api/v1/register', data),
+    login: (data) => apiClient.post('/api/v1/login', data),
+    getCurrentUser: () => apiClient.get('/api/v1/me'),
 };
 
 // Jobs API
 export const jobsAPI = {
-    getAll: (params) => apiClient.get('/jobs', { params }),
-    getById: (id) => apiClient.get(`/jobs/${id}`),  // ✅ Parentheses
-    create: (data) => apiClient.post('/jobs', data),
-    update: (id, data) => apiClient.put(`/jobs/${id}`, data),  // ✅ Parentheses
-    delete: (id) => apiClient.delete(`/jobs/${id}`),  // ✅ Parentheses
+    getAll: (params) => apiClient.get('/api/v1/jobs', { params }),
+    getById: (id) => apiClient.get(`/api/v1/jobs/${id}`),
+    create: (data) => apiClient.post('/api/v1/jobs', data),
+    update: (id, data) => apiClient.put(`/api/v1/jobs/${id}`, data),
+    delete: (id) => apiClient.delete(`/api/v1/jobs/${id}`),
     assignTechnician: (id, technicianId) =>
-        apiClient.patch(`/jobs/${id}/assign`, { technician_id: technicianId }),  // ✅ Parentheses
+        apiClient.patch(`/api/v1/jobs/${id}/assign`, { technician_id: technicianId }),
     updateStatus: (id, status) => {
         console.log('🔍 Calling updateStatus API:', { id, status });
-        return apiClient.patch(`/jobs/${id}/status`, { status });  // ✅ Simplified
+        return apiClient.patch(`/api/v1/jobs/${id}/status`, { status });
     },
 };
 
 // Customers API
 export const customersAPI = {
-    getAll: (search) => apiClient.get('/customers', { params: { search } }),
-    getById: (id) => apiClient.get(`/customers/${id}`),  // ✅ Parentheses
-    create: (data) => apiClient.post('/customers', data),
-    update: (id, data) => apiClient.put(`/customers/${id}`, data),  // ✅ Parentheses
-    delete: (id) => apiClient.delete(`/customers/${id}`),  // ✅ Parentheses
+    getAll: (search) => apiClient.get('/api/v1/customers', { params: { search } }),
+    getById: (id) => apiClient.get(`/api/v1/customers/${id}`),
+    create: (data) => apiClient.post('/api/v1/customers', data),
+    update: (id, data) => apiClient.put(`/api/v1/customers/${id}`, data),
+    delete: (id) => apiClient.delete(`/api/v1/customers/${id}`),
 };
 
 // Technicians API
 export const techniciansAPI = {
-    getAll: (activeOnly) => apiClient.get('/technicians', {
+    getAll: (activeOnly) => apiClient.get('/api/v1/technicians', {
         params: { active_only: activeOnly }
     }),
-    getById: (id) => apiClient.get(`/technicians/${id}`),  // ✅ Parentheses
-    create: (data) => apiClient.post('/technicians', data),
-    update: (id, data) => apiClient.put(`/technicians/${id}`, data),  // ✅ Parentheses
-    delete: (id) => apiClient.delete(`/technicians/${id}`),  // ✅ Parentheses
+    getById: (id) => apiClient.get(`/api/v1/technicians/${id}`),
+    create: (data) => apiClient.post('/api/v1/technicians', data),
+    update: (id, data) => apiClient.put(`/api/v1/technicians/${id}`, data),
+    delete: (id) => apiClient.delete(`/api/v1/technicians/${id}`),
 };
 
 export default apiClient;

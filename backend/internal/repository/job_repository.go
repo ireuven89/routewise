@@ -123,7 +123,7 @@ func (r *JobRepository) FindByID(id uint, userID uint) (*models.Job, error) {
 	return job, nil
 }
 
-func (r *JobRepository) FindAll(userID uint, filters map[string]interface{}) ([]*models.Job, error) {
+func (r *JobRepository) FindAll(userID uint, filters map[string]interface{}, sortBy string) ([]*models.Job, error) {
 	query := `
 		SELECT 
 			j.id, j.user_id, j.customer_id, j.technician_id, j.title, 
@@ -151,7 +151,23 @@ func (r *JobRepository) FindAll(userID uint, filters map[string]interface{}) ([]
 		args = append(args, techID)
 	}
 
-	query += " ORDER BY j.scheduled_at DESC"
+	if date, ok := filters["scheduled_date"].(string); ok && date != "" {
+		argCount++
+		query += fmt.Sprintf(" AND DATE(j.scheduled_at) = $%d", argCount)
+		args = append(args, date)
+	}
+
+	if sortBy == "" || sortBy == "scheduled_at" {
+		query += " ORDER BY j.scheduled_at DESC"
+	} else if sortBy == "created_at" {
+		query += " ORDER BY j.created_at DESC"
+	} else if sortBy == "updated_at" {
+		query += " ORDER BY j.updated_at DESC"
+	} else {
+		query += " ORDER BY j.scheduled_at DESC" // Fallback
+	}
+
+	//query += " ORDER BY j.scheduled_at DESC"
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {

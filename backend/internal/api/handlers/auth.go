@@ -42,6 +42,7 @@ type AuthResponse struct {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Println("failed parsing request: ", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -49,6 +50,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// Check if user already exists
 	existingUser, _ := h.userRepo.FindByEmail(req.Email)
 	if existingUser != nil {
+		log.Println("failed adding duplicate email ")
 		c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
 		return
 	}

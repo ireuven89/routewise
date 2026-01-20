@@ -104,7 +104,16 @@ func (h *JobHandler) GetAll(c *gin.Context) {
 		}
 	}
 
-	jobs, err := h.jobRepo.FindAll(userID, filters)
+	if date := c.Query("date"); date != "" {
+		filters["scheduled_date"] = date
+	}
+
+	sortBy := c.Query("sort")
+	if sortBy == "" {
+		sortBy = "created_at" // Default sort
+	}
+
+	jobs, err := h.jobRepo.FindAll(userID, filters, sortBy)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch jobs"})
 		return
