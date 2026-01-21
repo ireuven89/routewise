@@ -12,7 +12,7 @@ import {
 } from 'react-icons/fa';
 import Layout from '../components/Layout';
 import { StatCardSkeleton, CardSkeleton } from '../components/Skeleton';
-import api from '../api/client';
+import {customersAPI, jobsAPI, techniciansAPI} from '../api/client';
 
 const Dashboard = () => {
     const [stats, setStats] = useState({
@@ -34,9 +34,9 @@ const Dashboard = () => {
         try {
             // Fetch all data in parallel
             const [jobsRes, customersRes, techniciansRes] = await Promise.all([
-                api.get('/jobs'),
-                api.get('/customers'),
-                api.get('/technicians'),
+                jobsAPI.getAll(),
+                customersAPI.getAll(),
+                techniciansAPI.getAll(false),
             ]);
 
             const jobs = jobsRes.data || [];
@@ -48,8 +48,11 @@ const Dashboard = () => {
             const todayEnd = new Date();
             todayEnd.setHours(23, 59, 59, 999);
 
+            console.log("all jobs:", jobs.length)
+            console.log("schdeuled jobs", scheduledJobs.length)
             const todayScheduled = jobs.filter((j) => {
-                const jobDate = new Date(j.scheduled_date);
+                const jobDate = new Date(j.scheduled_at);
+                console.log("todays date: ", jobDate)
                 return jobDate >= todayStart && jobDate <= todayEnd;
             }).slice(0, 5);
 
@@ -187,7 +190,7 @@ const Dashboard = () => {
                                                         <div className="flex items-center mt-2 space-x-4">
                               <span className="inline-flex items-center text-xs text-gray-600">
                                 <FaClock className="mr-1" />
-                                  {new Date(job.scheduled_date).toLocaleTimeString('en-US', {
+                                  {new Date(job.scheduled_at).toLocaleTimeString('en-US', {
                                       hour: '2-digit',
                                       minute: '2-digit',
                                   })}
