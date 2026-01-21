@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
+	"github.com/getsentry/sentry-go"
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/models"
 	"github.com/ireuven89/routewise/internal/repository"
@@ -42,6 +44,7 @@ type AuthResponse struct {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		sentry.CaptureException(err)
 		log.Println("failed parsing request: ", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -69,6 +72,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	// Hash password
 	if err := user.HashPassword(req.Password); err != nil {
+		sentry.CaptureException(err)
 		log.Println("failed to create user: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 		return
@@ -76,6 +80,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	// Save to database
 	if err := h.userRepo.Create(user); err != nil {
+		sentry.CaptureException(err)
 		log.Println("failed to create user: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user" + err.Error()})
 		return
@@ -84,6 +89,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// Generate JWT token
 	token, err := utils.GenerateToken(user.ID, user.Email)
 	if err != nil {
+		sentry.CaptureException(err)
 		log.Println("failed to create user: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
@@ -101,6 +107,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -108,12 +115,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// Find user by email
 	user, err := h.userRepo.FindByEmail(strings.ToLower(req.Email))
 	if err != nil {
+		sentry.CaptureException(err)
+		fmt.Println("failed login: ", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 
 	// Check password
 	if !user.CheckPassword(req.Password) {
+		sentry.CaptureException(err)
+		fmt.Println("failed login: invalid password")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
@@ -121,6 +132,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// Generate JWT token
 	token, err := utils.GenerateToken(user.ID, user.Email)
 	if err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
@@ -144,6 +156,7 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 
 	user, err := h.userRepo.FindByID(userID.(uint))
 	if err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}

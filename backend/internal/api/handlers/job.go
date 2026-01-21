@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"github.com/getsentry/sentry-go"
 	"io"
 	"net/http"
 	"strconv"
@@ -58,6 +59,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 
 	var req CreateJobRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -80,6 +82,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.jobRepo.Create(job); err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create job"})
 		return
 	}
@@ -115,6 +118,7 @@ func (h *JobHandler) GetAll(c *gin.Context) {
 
 	jobs, err := h.jobRepo.FindAll(userID, filters, sortBy)
 	if err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch jobs"})
 		return
 	}
@@ -127,12 +131,14 @@ func (h *JobHandler) GetByID(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
 		return
 	}
 
 	job, err := h.jobRepo.FindByID(uint(id), userID)
 	if err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
 		return
 	}
@@ -145,12 +151,14 @@ func (h *JobHandler) Update(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
 		return
 	}
 
 	var req UpdateJobRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -158,6 +166,7 @@ func (h *JobHandler) Update(c *gin.Context) {
 	// Fetch existing job
 	job, err := h.jobRepo.FindByID(uint(id), userID)
 	if err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
 		return
 	}
@@ -182,6 +191,7 @@ func (h *JobHandler) Update(c *gin.Context) {
 	}
 
 	if err := h.jobRepo.Update(job); err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update job"})
 		return
 	}

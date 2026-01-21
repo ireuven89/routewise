@@ -5,14 +5,38 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/api/handlers"
 	"github.com/ireuven89/routewise/internal/api/middleware"
+	"time"
 )
 
 func SetupRoutes(router *gin.Engine, db *sql.DB) {
 	// Health check
+
 	router.GET("/health", func(c *gin.Context) {
+		err := db.Ping()
+		if err != nil {
+			c.JSON(503, gin.H{
+				"status": "unhealthy",
+				"error":  "database unreachable",
+			})
+			return
+		}
+
 		c.JSON(200, gin.H{
-			"status":  "ok",
-			"message": "RouteWise API is running",
+			"status":    "ok",
+			"message":   "RouteWise API is running",
+			"database":  "connected",
+			"timestamp": time.Now(),
+		})
+	})
+
+	router.GET("/metrics", func(c *gin.Context) {
+		stats := db.Stats()
+		c.JSON(200, gin.H{
+			"open_connections": stats.OpenConnections,
+			"in_use":           stats.InUse,
+			"idle":             stats.Idle,
+			"wait_count":       stats.WaitCount,
+			"max_open":         stats.MaxOpenConnections,
 		})
 	})
 

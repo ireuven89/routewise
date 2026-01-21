@@ -1,12 +1,15 @@
 package main
 
 import (
+	"github.com/getsentry/sentry-go"
+	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/api"
 	"github.com/ireuven89/routewise/internal/config"
 	"github.com/joho/godotenv"
 	"log"
 	"os"
+	"time"
 )
 
 func main() {
@@ -23,7 +26,17 @@ func main() {
 	}
 
 	// Setup Gin router
+	err = sentry.Init(sentry.ClientOptions{
+		Dsn:         os.Getenv("SENTRY_DSN"),
+		Environment: "production",
+	})
+	if err != nil {
+		log.Printf("Sentry initialization failed: %v", err)
+	}
+	defer sentry.Flush(2 * time.Second)
+
 	router := gin.Default()
+	router.Use(sentrygin.New(sentrygin.Options{}))
 
 	// CORS middleware
 	if os.Getenv("ENV") != "production" {

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"github.com/getsentry/sentry-go"
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/models"
 	"github.com/ireuven89/routewise/internal/repository"
@@ -38,6 +39,7 @@ func (h *TechnicianHandler) Create(c *gin.Context) {
 
 	var req CreateTechnicianRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -51,6 +53,7 @@ func (h *TechnicianHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.technicianRepo.Create(technician); err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create technician"})
 		return
 	}
@@ -65,6 +68,7 @@ func (h *TechnicianHandler) GetAll(c *gin.Context) {
 
 	technicians, err := h.technicianRepo.FindAll(userID, activeOnly)
 	if err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch technicians"})
 		return
 	}
@@ -77,12 +81,14 @@ func (h *TechnicianHandler) GetByID(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid technician ID"})
 		return
 	}
 
 	technician, err := h.technicianRepo.FindByID(uint(id), userID)
 	if err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Technician not found"})
 		return
 	}
@@ -95,12 +101,14 @@ func (h *TechnicianHandler) Update(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid technician ID"})
 		return
 	}
 
 	var req UpdateTechnicianRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -108,6 +116,7 @@ func (h *TechnicianHandler) Update(c *gin.Context) {
 	// Fetch existing technician
 	technician, err := h.technicianRepo.FindByID(uint(id), userID)
 	if err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Technician not found"})
 		return
 	}
