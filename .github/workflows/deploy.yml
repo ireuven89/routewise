@@ -29,6 +29,8 @@ jobs:
           
           # Deploy via SSH
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} bash << 'ENDSSH'
+            set -e
+            set -o pipefail
           
             export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
             cd ~/routewise/backend
