@@ -23,6 +23,7 @@ jobs:
           USER: ${{ secrets.EC2_USER }}
         run: |
           # Setup SSH
+          set -e
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
           
