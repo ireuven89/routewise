@@ -28,7 +28,9 @@ jobs:
           chmod 600 private_key.pem
           
           # Deploy via SSH
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} bash << 'ENDSSH'
+          
+            export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
             cd ~/routewise/backend
           
             # Pull latest code
