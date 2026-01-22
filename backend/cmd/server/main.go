@@ -5,6 +5,7 @@ import (
 	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/api"
+	"github.com/ireuven89/routewise/internal/api/middleware"
 	"github.com/ireuven89/routewise/internal/config"
 	"github.com/joho/godotenv"
 	"log"
@@ -38,25 +39,33 @@ func main() {
 	router := gin.Default()
 	router.Use(sentrygin.New(sentrygin.Options{}))
 
-	// CORS middleware
-	if os.Getenv("ENV") != "production" {
-		router.Use(func(c *gin.Context) {
-			origin := c.Request.Header.Get("Origin")
+	router.Use(middleware.Cors())
+	/*allowedOriginsStr := os.Getenv("ALLOWED_ORIGINS")
+	router.Use(func(c *gin.Context) {
+		origin := c.Request.Header.Get("Origin")
+		allowedOrigins := strings.Split(allowedOriginsStr, ",")
 
-			if origin == "http://localhost:3000" {
-				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-				c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-				c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		isAllowed := false
+		for _, allowedOrigin := range allowedOrigins {
+			if strings.TrimSpace(allowedOrigin) == origin {
+				isAllowed = true
+				break
 			}
+		}
 
-			if c.Request.Method == "OPTIONS" {
-				c.AbortWithStatus(204)
-				return
-			}
-			c.Next()
-		})
-	}
+		if isAllowed {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	})*/
 
 	// Setup routes
 	api.SetupRoutes(router, db)
