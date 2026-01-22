@@ -34,7 +34,7 @@ jobs:
             git pull origin main
           
             # Build new binary
-            go build -o routewise main.go
+            go build -o routewise ./cmd/server
           
             # Restart service
             sudo systemctl restart routewise
