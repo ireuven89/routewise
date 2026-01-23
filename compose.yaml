@@ -5,8 +5,8 @@ services:
     image: postgres:15
     container_name: routewise-db
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: your_password
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: routewise
     ports:
       - "5432:5432"

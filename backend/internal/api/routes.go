@@ -2,10 +2,11 @@ package api
 
 import (
 	"database/sql"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/api/handlers"
 	"github.com/ireuven89/routewise/internal/api/middleware"
-	"time"
 )
 
 func SetupRoutes(router *gin.Engine, db *sql.DB) {

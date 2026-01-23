@@ -3,14 +3,15 @@ package handlers
 import (
 	"database/sql"
 	"fmt"
+	"log"
+	"net/http"
+	"strings"
+
 	"github.com/getsentry/sentry-go"
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/models"
 	"github.com/ireuven89/routewise/internal/repository"
 	"github.com/ireuven89/routewise/pkg/utils"
-	"log"
-	"net/http"
-	"strings"
 )
 
 type AuthHandler struct {
