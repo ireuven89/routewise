@@ -3,8 +3,9 @@ package repository
 import (
 	"database/sql"
 	"errors"
-	"github.com/ireuven89/routewise/internal/models"
 	"time"
+
+	"github.com/ireuven89/routewise/internal/models"
 )
 
 type UserRepository struct {

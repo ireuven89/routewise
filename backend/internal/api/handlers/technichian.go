@@ -2,12 +2,13 @@ package handlers
 
 import (
 	"database/sql"
+	"net/http"
+	"strconv"
+
 	"github.com/getsentry/sentry-go"
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/models"
 	"github.com/ireuven89/routewise/internal/repository"
-	"net/http"
-	"strconv"
 )
 
 type TechnicianHandler struct {

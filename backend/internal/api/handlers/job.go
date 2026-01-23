@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/getsentry/sentry-go"
 	"io"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/getsentry/sentry-go"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/models"
