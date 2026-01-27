@@ -17,15 +17,16 @@ func NewTechnicianRepository(db *sql.DB) *TechnicianRepository {
 
 func (r *TechnicianRepository) Create(technician *models.Technician) error {
 	query := `
-		INSERT INTO technicians (user_id, name, email, phone, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO technicians (organization_id, created_by, name, email, phone, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
 	`
 
 	now := time.Now()
 	err := r.db.QueryRow(
 		query,
-		technician.UserID,
+		technician.OrganizationID,
+		technician.CreatedBy,
 		technician.Name,
 		technician.Email,
 		technician.Phone,
@@ -43,19 +44,21 @@ func (r *TechnicianRepository) Create(technician *models.Technician) error {
 	return nil
 }
 
-func (r *TechnicianRepository) FindByID(id uint, userID uint) (*models.Technician, error) {
+func (r *TechnicianRepository) FindByID(id uint, organizationID uint) (*models.Technician, error) {
 	query := `
-		SELECT id, user_id, name, email, phone, is_active, created_at, updated_at
+		SELECT id, organization_id, created_by, name, email, phone, is_active, created_at, updated_at
 		FROM technicians
-		WHERE id = $1 AND user_id = $2
+		WHERE id = $1 AND organization_id = $2
 	`
 
 	technician := &models.Technician{}
 	var email sql.NullString
+	var createdBy sql.NullInt64
 
-	err := r.db.QueryRow(query, id, userID).Scan(
+	err := r.db.QueryRow(query, id, organizationID).Scan(
 		&technician.ID,
-		&technician.UserID,
+		&technician.OrganizationID,
+		&createdBy,
 		&technician.Name,
 		&email,
 		&technician.Phone,
@@ -71,6 +74,10 @@ func (r *TechnicianRepository) FindByID(id uint, userID uint) (*models.Technicia
 		return nil, err
 	}
 
+	if createdBy.Valid {
+		cb := uint(createdBy.Int64)
+		technician.CreatedBy = &cb
+	}
 	if email.Valid {
 		technician.Email = email.String
 	}
@@ -78,14 +85,14 @@ func (r *TechnicianRepository) FindByID(id uint, userID uint) (*models.Technicia
 	return technician, nil
 }
 
-func (r *TechnicianRepository) FindAll(userID uint, activeOnly bool) ([]*models.Technician, error) {
+func (r *TechnicianRepository) FindAll(organizationID uint, activeOnly bool) ([]*models.Technician, error) {
 	query := `
-		SELECT id, user_id, name, email, phone, is_active, created_at, updated_at
+		SELECT id, organization_id, created_by, name, email, phone, is_active, created_at, updated_at
 		FROM technicians
-		WHERE user_id = $1
+		WHERE organization_id = $1
 	`
 
-	args := []interface{}{userID}
+	args := []interface{}{organizationID}
 
 	if activeOnly {
 		query += ` AND is_active = true`
@@ -104,10 +111,12 @@ func (r *TechnicianRepository) FindAll(userID uint, activeOnly bool) ([]*models.
 	for rows.Next() {
 		technician := &models.Technician{}
 		var email sql.NullString
+		var createdBy sql.NullInt64
 
 		err := rows.Scan(
 			&technician.ID,
-			&technician.UserID,
+			&technician.OrganizationID,
+			&createdBy,
 			&technician.Name,
 			&email,
 			&technician.Phone,
@@ -120,6 +129,10 @@ func (r *TechnicianRepository) FindAll(userID uint, activeOnly bool) ([]*models.
 			return nil, err
 		}
 
+		if createdBy.Valid {
+			cb := uint(createdBy.Int64)
+			technician.CreatedBy = &cb
+		}
 		if email.Valid {
 			technician.Email = email.String
 		}
@@ -134,7 +147,7 @@ func (r *TechnicianRepository) Update(technician *models.Technician) error {
 	query := `
 		UPDATE technicians
 		SET name = $1, email = $2, phone = $3, is_active = $4, updated_at = $5
-		WHERE id = $6 AND user_id = $7
+		WHERE id = $6 AND organization_id = $7
 	`
 
 	result, err := r.db.Exec(
@@ -145,7 +158,7 @@ func (r *TechnicianRepository) Update(technician *models.Technician) error {
 		technician.IsActive,
 		time.Now(),
 		technician.ID,
-		technician.UserID,
+		technician.OrganizationID,
 	)
 
 	if err != nil {
@@ -164,10 +177,10 @@ func (r *TechnicianRepository) Update(technician *models.Technician) error {
 	return nil
 }
 
-func (r *TechnicianRepository) Delete(id uint, userID uint) error {
-	query := `DELETE FROM technicians WHERE id = $1 AND user_id = $2`
+func (r *TechnicianRepository) Delete(id uint, organizationID uint) error {
+	query := `DELETE FROM technicians WHERE id = $1 AND organization_id = $2`
 
-	result, err := r.db.Exec(query, id, userID)
+	result, err := r.db.Exec(query, id, organizationID)
 	if err != nil {
 		return err
 	}

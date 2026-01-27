@@ -7,57 +7,79 @@ import (
 	"time"
 )
 
-type UserRepository struct {
+type OrganizationUserRepository struct {
 	db *sql.DB
 }
 
-func NewUserRepository(db *sql.DB) *UserRepository {
-	return &UserRepository{db: db}
+func NewUserRepository(db *sql.DB) *OrganizationUserRepository {
+	return &OrganizationUserRepository{db: db}
 }
 
-func (r *UserRepository) Create(user *models.User) error {
-	query := `
-		INSERT INTO users (email, password_hash, company_name, phone, industry, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id
-	`
-
-	now := time.Now()
-	err := r.db.QueryRow(
-		query,
-		user.Email,
-		user.Password,
-		user.CompanyName,
-		user.Phone,
-		user.Industry,
-		now,
-		now,
-	).Scan(&user.ID)
-
+// CreateOrganizationWithUser creates both an organization and its first admin user in a transaction
+func (r *OrganizationUserRepository) CreateOrganizationWithUser(org *models.Organization, user *models.OrganizationUser) error {
+	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
 
+	// Create organization
+	orgQuery := `
+		INSERT INTO organizations (name, phone, industry, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id
+	`
+	now := time.Now()
+	err = tx.QueryRow(orgQuery, org.Name, org.Phone, org.Industry, now, now).Scan(&org.ID)
+	if err != nil {
+		return err
+	}
+	org.CreatedAt = now
+	org.UpdatedAt = now
+
+	// Create organization user
+	userQuery := `
+		INSERT INTO organization_users (organization_id, email, password_hash, name, role, phone, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id
+	`
+	user.OrganizationID = org.ID
+	err = tx.QueryRow(
+		userQuery,
+		user.OrganizationID,
+		user.Email,
+		user.Password,
+		user.Name,
+		user.Role,
+		user.Phone,
+		now,
+		now,
+	).Scan(&user.ID)
+	if err != nil {
+		return err
+	}
 	user.CreatedAt = now
 	user.UpdatedAt = now
-	return nil
+
+	return tx.Commit()
 }
 
-func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
+func (r *OrganizationUserRepository) FindByEmail(email string) (*models.OrganizationUser, error) {
 	query := `
-		SELECT id, email, password_hash, company_name, phone, industry, created_at, updated_at
-		FROM users
+		SELECT id, organization_id, email, password_hash, name, role, phone, created_at, updated_at
+		FROM organization_users
 		WHERE email = $1
 	`
 
-	user := &models.User{}
+	user := &models.OrganizationUser{}
 	err := r.db.QueryRow(query, email).Scan(
 		&user.ID,
+		&user.OrganizationID,
 		&user.Email,
 		&user.Password,
-		&user.CompanyName,
+		&user.Name,
+		&user.Role,
 		&user.Phone,
-		&user.Industry,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -73,21 +95,22 @@ func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 	return user, nil
 }
 
-func (r *UserRepository) FindByID(id uint) (*models.User, error) {
+func (r *OrganizationUserRepository) FindByID(id uint) (*models.OrganizationUser, error) {
 	query := `
-		SELECT id, email, password_hash, company_name, phone, industry, created_at, updated_at
-		FROM users
+		SELECT id, organization_id, email, password_hash, name, role, phone, created_at, updated_at
+		FROM organization_users
 		WHERE id = $1
 	`
 
-	user := &models.User{}
+	user := &models.OrganizationUser{}
 	err := r.db.QueryRow(query, id).Scan(
 		&user.ID,
+		&user.OrganizationID,
 		&user.Email,
 		&user.Password,
-		&user.CompanyName,
+		&user.Name,
+		&user.Role,
 		&user.Phone,
-		&user.Industry,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -101,4 +124,32 @@ func (r *UserRepository) FindByID(id uint) (*models.User, error) {
 	}
 
 	return user, nil
+}
+
+func (r *OrganizationUserRepository) FindOrganizationByID(id uint) (*models.Organization, error) {
+	query := `
+		SELECT id, name, phone, industry, created_at, updated_at
+		FROM organizations
+		WHERE id = $1
+	`
+
+	org := &models.Organization{}
+	err := r.db.QueryRow(query, id).Scan(
+		&org.ID,
+		&org.Name,
+		&org.Phone,
+		&org.Industry,
+		&org.CreatedAt,
+		&org.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, errors.New("organization not found")
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return org, nil
 }

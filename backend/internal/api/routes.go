@@ -57,7 +57,7 @@ func SetupRoutes(router *gin.Engine, db *sql.DB) {
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware())
 		{
-			protected.GET("/me", authHandler.GetCurrentUser)
+			protected.GET("/me", authHandler.GetProfile)
 
 			// Jobs
 			protected.POST("/jobs", jobHandler.Create)

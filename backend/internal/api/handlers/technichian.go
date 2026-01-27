@@ -35,7 +35,8 @@ type UpdateTechnicianRequest struct {
 }
 
 func (h *TechnicianHandler) Create(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	organizationID := c.GetUint("organization_id")
+	organizationUserID := c.GetUint("organization_user_id")
 
 	var req CreateTechnicianRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -45,11 +46,12 @@ func (h *TechnicianHandler) Create(c *gin.Context) {
 	}
 
 	technician := &models.Technician{
-		UserID:   userID,
-		Name:     req.Name,
-		Email:    req.Email,
-		Phone:    req.Phone,
-		IsActive: true, // Default to active
+		OrganizationID: organizationID,
+		CreatedBy:      &organizationUserID,
+		Name:           req.Name,
+		Email:          req.Email,
+		Phone:          req.Phone,
+		IsActive:       true, // Default to active
 	}
 
 	if err := h.technicianRepo.Create(technician); err != nil {
@@ -62,11 +64,11 @@ func (h *TechnicianHandler) Create(c *gin.Context) {
 }
 
 func (h *TechnicianHandler) GetAll(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	organizationID := c.GetUint("organization_id")
 
 	activeOnly := c.Query("active_only") == "true"
 
-	technicians, err := h.technicianRepo.FindAll(userID, activeOnly)
+	technicians, err := h.technicianRepo.FindAll(organizationID, activeOnly)
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch technicians"})
@@ -77,7 +79,7 @@ func (h *TechnicianHandler) GetAll(c *gin.Context) {
 }
 
 func (h *TechnicianHandler) GetByID(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	organizationID := c.GetUint("organization_id")
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -86,7 +88,7 @@ func (h *TechnicianHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	technician, err := h.technicianRepo.FindByID(uint(id), userID)
+	technician, err := h.technicianRepo.FindByID(uint(id), organizationID)
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Technician not found"})
@@ -97,7 +99,7 @@ func (h *TechnicianHandler) GetByID(c *gin.Context) {
 }
 
 func (h *TechnicianHandler) Update(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	organizationID := c.GetUint("organization_id")
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -114,7 +116,7 @@ func (h *TechnicianHandler) Update(c *gin.Context) {
 	}
 
 	// Fetch existing technician
-	technician, err := h.technicianRepo.FindByID(uint(id), userID)
+	technician, err := h.technicianRepo.FindByID(uint(id), organizationID)
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Technician not found"})
@@ -142,7 +144,7 @@ func (h *TechnicianHandler) Update(c *gin.Context) {
 }
 
 func (h *TechnicianHandler) Delete(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	organizationID := c.GetUint("organization_id")
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -150,7 +152,7 @@ func (h *TechnicianHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.technicianRepo.Delete(uint(id), userID); err != nil {
+	if err := h.technicianRepo.Delete(uint(id), organizationID); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Technician not found"})
 		return
 	}
