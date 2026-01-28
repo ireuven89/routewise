@@ -9,17 +9,18 @@ import (
 )
 
 type customerDB struct {
-	ID        uint      `sql:"id""`
-	UserID    uint      `sql:"user_id" `
-	Name      string    `sql:"name" `
-	Email     string    `sql:"email"`
-	Phone     string    `sql:"phone" `
-	Address   string    `sql:"address"`
-	Latitude  *float64  `sql:"latitude"`
-	Longitude *float64  `sql:"longitude"`
-	Notes     string    `sql:"notes"`
-	CreatedAt time.Time `sql:"created_at"`
-	UpdatedAt time.Time `sql:"updated_at"`
+	ID             uint      `sql:"id""`
+	OrganizationID uint      `sql:"organization_id" `
+	CreatedBy      *uint     `sql:"created_by"`
+	Name           string    `sql:"name" `
+	Email          string    `sql:"email"`
+	Phone          string    `sql:"phone" `
+	Address        string    `sql:"address"`
+	Latitude       *float64  `sql:"latitude"`
+	Longitude      *float64  `sql:"longitude"`
+	Notes          string    `sql:"notes"`
+	CreatedAt      time.Time `sql:"created_at"`
+	UpdatedAt      time.Time `sql:"updated_at"`
 }
 
 type CustomerRepository struct {
@@ -32,15 +33,16 @@ func NewCustomerRepository(db *sql.DB) *CustomerRepository {
 
 func (r *CustomerRepository) Create(customer *models.Customer) error {
 	query := `
-		INSERT INTO customers (user_id, name, email, phone, address, latitude, longitude, notes, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO customers (organization_id, created_by, name, email, phone, address, latitude, longitude, notes, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id
 	`
 
 	now := time.Now()
 	err := r.db.QueryRow(
 		query,
-		customer.UserID,
+		customer.OrganizationID,
+		customer.CreatedBy,
 		customer.Name,
 		customer.Email,
 		customer.Phone,
@@ -61,19 +63,21 @@ func (r *CustomerRepository) Create(customer *models.Customer) error {
 	return nil
 }
 
-func (r *CustomerRepository) FindByID(id uint, userID uint) (*models.Customer, error) {
+func (r *CustomerRepository) FindByID(id uint, organizationID uint) (*models.Customer, error) {
 	query := `
-		SELECT id, user_id, name, email, phone, address, latitude, longitude, notes, created_at, updated_at
+		SELECT id, organization_id, created_by, name, email, phone, address, latitude, longitude, notes, created_at, updated_at
 		FROM customers
-		WHERE id = $1 AND user_id = $2
+		WHERE id = $1 AND organization_id = $2
 	`
 
 	customer := &models.Customer{}
 	var email, latitude, longitude sql.NullString
+	var createdBy sql.NullInt64
 
-	err := r.db.QueryRow(query, id, userID).Scan(
+	err := r.db.QueryRow(query, id, organizationID).Scan(
 		&customer.ID,
-		&customer.UserID,
+		&customer.OrganizationID,
+		&createdBy,
 		&customer.Name,
 		&email,
 		&customer.Phone,
@@ -93,6 +97,10 @@ func (r *CustomerRepository) FindByID(id uint, userID uint) (*models.Customer, e
 	}
 
 	// Handle nullable fields
+	if createdBy.Valid {
+		cb := uint(createdBy.Int64)
+		customer.CreatedBy = &cb
+	}
 	if email.Valid {
 		customer.Email = email.String
 	}
@@ -108,14 +116,14 @@ func (r *CustomerRepository) FindByID(id uint, userID uint) (*models.Customer, e
 	return customer, nil
 }
 
-func (r *CustomerRepository) FindAll(userID uint, search string) ([]*models.Customer, error) {
+func (r *CustomerRepository) FindAll(organizationID uint, search string) ([]*models.Customer, error) {
 	query := `
-		SELECT id, user_id, name, email, phone, address, latitude, longitude, notes, created_at, updated_at
+		SELECT id, organization_id, created_by, name, email, phone, address, latitude, longitude, notes, created_at, updated_at
 		FROM customers
-		WHERE user_id = $1
+		WHERE organization_id = $1
 	`
 
-	args := []interface{}{userID}
+	args := []interface{}{organizationID}
 
 	// Add search filter
 	if search != "" {
@@ -137,10 +145,12 @@ func (r *CustomerRepository) FindAll(userID uint, search string) ([]*models.Cust
 		customer := &models.Customer{}
 		var email, notes sql.NullString
 		var latitude, longitude sql.NullFloat64
+		var createdBy sql.NullInt64
 
 		err := rows.Scan(
 			&customer.ID,
-			&customer.UserID,
+			&customer.OrganizationID,
+			&createdBy,
 			&customer.Name,
 			&email,
 			&customer.Phone,
@@ -158,6 +168,10 @@ func (r *CustomerRepository) FindAll(userID uint, search string) ([]*models.Cust
 		}
 
 		// Handle nullable fields
+		if createdBy.Valid {
+			cb := uint(createdBy.Int64)
+			customer.CreatedBy = &cb
+		}
 		if email.Valid {
 			customer.Email = email.String
 		}
@@ -183,26 +197,27 @@ func (r *CustomerRepository) FindAll(userID uint, search string) ([]*models.Cust
 func formatCustomer(db *customerDB) *models.Customer {
 
 	return &models.Customer{
-		ID:        db.ID,
-		UserID:    db.UserID,
-		Name:      db.Name,
-		Email:     db.Email,
-		Phone:     db.Phone,
-		Address:   db.Address,
-		Longitude: db.Longitude,
-		Latitude:  db.Latitude,
-		Notes:     db.Notes,
-		CreatedAt: db.CreatedAt,
-		UpdatedAt: db.UpdatedAt,
+		ID:             db.ID,
+		OrganizationID: db.OrganizationID,
+		CreatedBy:      db.CreatedBy,
+		Name:           db.Name,
+		Email:          db.Email,
+		Phone:          db.Phone,
+		Address:        db.Address,
+		Longitude:      db.Longitude,
+		Latitude:       db.Latitude,
+		Notes:          db.Notes,
+		CreatedAt:      db.CreatedAt,
+		UpdatedAt:      db.UpdatedAt,
 	}
 }
 
 func (r *CustomerRepository) Update(customer *models.Customer) error {
 	query := `
 		UPDATE customers
-		SET name = $1, email = $2, phone = $3, address = $4, 
+		SET name = $1, email = $2, phone = $3, address = $4,
 		    latitude = $5, longitude = $6, notes = $7, updated_at = $8
-		WHERE id = $9 AND user_id = $10
+		WHERE id = $9 AND organization_id = $10
 	`
 
 	result, err := r.db.Exec(
@@ -216,7 +231,7 @@ func (r *CustomerRepository) Update(customer *models.Customer) error {
 		customer.Notes,
 		time.Now(),
 		customer.ID,
-		customer.UserID,
+		customer.OrganizationID,
 	)
 
 	if err != nil {
@@ -235,10 +250,10 @@ func (r *CustomerRepository) Update(customer *models.Customer) error {
 	return nil
 }
 
-func (r *CustomerRepository) Delete(id uint, userID uint) error {
-	query := `DELETE FROM customers WHERE id = $1 AND user_id = $2`
+func (r *CustomerRepository) Delete(id uint, organizationID uint) error {
+	query := `DELETE FROM customers WHERE id = $1 AND organization_id = $2`
 
-	result, err := r.db.Exec(query, id, userID)
+	result, err := r.db.Exec(query, id, organizationID)
 	if err != nil {
 		return err
 	}

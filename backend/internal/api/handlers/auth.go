@@ -2,19 +2,18 @@ package handlers
 
 import (
 	"database/sql"
-	"fmt"
+	"net/http"
+
 	"github.com/getsentry/sentry-go"
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/models"
 	"github.com/ireuven89/routewise/internal/repository"
 	"github.com/ireuven89/routewise/pkg/utils"
-	"log"
-	"net/http"
-	"strings"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthHandler struct {
-	userRepo *repository.UserRepository
+	userRepo *repository.OrganizationUserRepository
 }
 
 func NewAuthHandler(db *sql.DB) *AuthHandler {
@@ -26,8 +25,9 @@ func NewAuthHandler(db *sql.DB) *AuthHandler {
 type RegisterRequest struct {
 	Email       string `json:"email" binding:"required,email"`
 	Password    string `json:"password" binding:"required,min=6"`
+	Name        string `json:"name" binding:"required"`
+	Phone       string `json:"phone" binding:"required"`
 	CompanyName string `json:"company_name" binding:"required"`
-	Phone       string `json:"phone"`
 	Industry    string `json:"industry"`
 }
 
@@ -37,15 +37,15 @@ type LoginRequest struct {
 }
 
 type AuthResponse struct {
-	Token string       `json:"token"`
-	User  *models.User `json:"user"`
+	Token        string                   `json:"token"`
+	User         *models.OrganizationUser `json:"user"`
+	Organization *models.Organization     `json:"organization"`
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		sentry.CaptureException(err)
-		log.Println("failed parsing request: ", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -53,54 +53,60 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// Check if user already exists
 	existingUser, _ := h.userRepo.FindByEmail(req.Email)
 	if existingUser != nil {
-		log.Println("failed adding duplicate email ")
 		c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
 		return
 	}
 
-	// Create user
-	user := &models.User{
-		Email:       strings.ToLower(req.Email),
-		CompanyName: req.CompanyName,
-		Phone:       req.Phone,
-		Industry:    req.Industry,
-	}
-
-	if user.Industry == "" {
-		user.Industry = "hvac"
-	}
-
 	// Hash password
-	if err := user.HashPassword(req.Password); err != nil {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
 		sentry.CaptureException(err)
-		log.Println("failed to create user: ", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process password"})
 		return
 	}
 
-	// Save to database
-	if err := h.userRepo.Create(user); err != nil {
+	// Create organization
+	org := &models.Organization{
+		Name:     req.CompanyName,
+		Phone:    req.Phone,
+		Industry: req.Industry,
+	}
+
+	if org.Industry == "" {
+		org.Industry = "hvac"
+	}
+
+	// Create user
+	user := &models.OrganizationUser{
+		Email:    req.Email,
+		Password: string(hashedPassword),
+		Name:     req.Name,
+		Role:     "owner",
+		Phone:    req.Phone,
+	}
+
+	// Create both in transaction
+	if err := h.userRepo.CreateOrganizationWithUser(org, user); err != nil {
 		sentry.CaptureException(err)
-		log.Println("failed to create user: ", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user" + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create account"})
 		return
 	}
 
 	// Generate JWT token
-	token, err := utils.GenerateToken(user.ID, user.Email)
+	token, err := utils.GenerateToken(user.ID, user.OrganizationID, user.Email, user.Role)
 	if err != nil {
 		sentry.CaptureException(err)
-		log.Println("failed to create user: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
 
-	// Clear password before sending response
+	// Don't return password
 	user.Password = ""
 
 	c.JSON(http.StatusCreated, AuthResponse{
-		Token: token,
-		User:  user,
+		Token:        token,
+		User:         user,
+		Organization: org,
 	})
 }
 
@@ -113,56 +119,66 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Find user by email
-	user, err := h.userRepo.FindByEmail(strings.ToLower(req.Email))
+	user, err := h.userRepo.FindByEmail(req.Email)
 	if err != nil {
-		sentry.CaptureException(err)
-		fmt.Println("failed login: ", err)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
 
-	// Check password
-	if !user.CheckPassword(req.Password) {
+	// Verify password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+
+	// Get organization
+	org, err := h.userRepo.FindOrganizationByID(user.OrganizationID)
+	if err != nil {
 		sentry.CaptureException(err)
-		fmt.Println("failed login: invalid password")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch organization"})
 		return
 	}
 
 	// Generate JWT token
-	token, err := utils.GenerateToken(user.ID, user.Email)
+	token, err := utils.GenerateToken(user.ID, user.OrganizationID, user.Email, user.Role)
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
 
-	// Clear password before sending response
+	// Don't return password
 	user.Password = ""
 
 	c.JSON(http.StatusOK, AuthResponse{
-		Token: token,
-		User:  user,
+		Token:        token,
+		User:         user,
+		Organization: org,
 	})
 }
 
-func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
-	// User ID is set by auth middleware
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
+func (h *AuthHandler) GetProfile(c *gin.Context) {
+	organizationUserID := c.GetUint("organization_user_id")
 
-	user, err := h.userRepo.FindByID(userID.(uint))
+	user, err := h.userRepo.FindByID(organizationUserID)
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
-	// Clear password
+	org, err := h.userRepo.FindOrganizationByID(user.OrganizationID)
+	if err != nil {
+		sentry.CaptureException(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch organization"})
+		return
+	}
+
+	// Don't return password
 	user.Password = ""
 
-	c.JSON(http.StatusOK, user)
+	c.JSON(http.StatusOK, gin.H{
+		"user":         user,
+		"organization": org,
+	})
 }

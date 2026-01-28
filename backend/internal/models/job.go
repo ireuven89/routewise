@@ -17,7 +17,8 @@ const (
 
 type Job struct {
 	ID              uint        `json:"id" gorm:"primaryKey"`
-	UserID          uint        `json:"user_id" gorm:"not null"`
+	OrganizationID  uint        `json:"organization_id" gorm:"not null"`
+	CreatedBy       *uint       `json:"created_by"`
 	CustomerID      uint        `json:"customer_id" gorm:"not null"`
 	TechnicianID    *uint       `json:"technician_id"`
 	Title           string      `json:"title" gorm:"not null"`

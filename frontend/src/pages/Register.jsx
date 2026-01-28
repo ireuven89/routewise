@@ -6,6 +6,8 @@ import {authAPI} from "../api/client";
 const Register = () => {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
+        name: '',
+        phone: '',
         companyName: '',
         email: '',
         password: '',
@@ -39,6 +41,8 @@ const Register = () => {
 
         try {
             const response = await authAPI.register({
+                name: formData.name,
+                phone: formData.phone,
                 company_name: formData.companyName,
                 email: formData.email,
                 password: formData.password,
@@ -106,7 +110,35 @@ const Register = () => {
                                 placeholder="ABC HVAC Services"
                             />
                         </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Your Name
+                            </label>
+                            <input
+                                type="text"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                required
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                placeholder="John Smith"
+                            />
+                        </div>
 
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Phone Number
+                            </label>
+                            <input
+                                type="tel"
+                                name="phone"
+                                value={formData.phone}
+                                onChange={handleChange}
+                                required
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                placeholder="(555) 123-4567"
+                            />
+                        </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Email Address

@@ -1,5 +1,5 @@
 -- Users/Authentication
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users  (
                        id SERIAL PRIMARY KEY,
                        email VARCHAR(255) UNIQUE NOT NULL,
                        password_hash VARCHAR(255) NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE users (
 );
 
 -- Technicians
-CREATE TABLE technicians (
+CREATE TABLE IF NOT EXISTS technicians (
                              id SERIAL PRIMARY KEY,
                              user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                              name VARCHAR(255) NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE technicians (
 );
 
 -- Customers
-CREATE TABLE customers (
+CREATE TABLE IF NOT EXISTS customers (
                            id SERIAL PRIMARY KEY,
                            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                            name VARCHAR(255) NOT NULL,
@@ -38,7 +38,7 @@ CREATE TABLE customers (
 );
 
 -- Jobs
-CREATE TABLE jobs (
+CREATE TABLE IF NOT EXISTS jobs (
                       id SERIAL PRIMARY KEY,
                       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                       customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
@@ -56,7 +56,7 @@ CREATE TABLE jobs (
 );
 
 -- Job notes/updates
-CREATE TABLE job_updates (
+CREATE TABLE IF NOT EXISTS job_updates (
                              id SERIAL PRIMARY KEY,
                              job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
                              technician_id INTEGER REFERENCES technicians(id),

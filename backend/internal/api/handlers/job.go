@@ -55,7 +55,8 @@ type UpdateStatusRequest struct {
 }
 
 func (h *JobHandler) Create(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	organizationID := c.GetUint("organization_id")
+	organizationUserID := c.GetUint("organization_user_id")
 
 	var req CreateJobRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -65,7 +66,8 @@ func (h *JobHandler) Create(c *gin.Context) {
 	}
 
 	job := &models.Job{
-		UserID:          userID,
+		OrganizationID:  organizationID,
+		CreatedBy:       &organizationUserID,
 		CustomerID:      req.CustomerID,
 		TechnicianID:    req.TechnicianID,
 		Title:           req.Title,
@@ -91,7 +93,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 }
 
 func (h *JobHandler) GetAll(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	organizationID := c.GetUint("organization_id")
 
 	// Parse filters
 	filters := make(map[string]interface{})
@@ -116,7 +118,7 @@ func (h *JobHandler) GetAll(c *gin.Context) {
 		sortBy = "created_at" // Default sort
 	}
 
-	jobs, err := h.jobRepo.FindAll(userID, filters, sortBy)
+	jobs, err := h.jobRepo.FindAll(organizationID, filters, sortBy)
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch jobs"})
@@ -127,7 +129,7 @@ func (h *JobHandler) GetAll(c *gin.Context) {
 }
 
 func (h *JobHandler) GetByID(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	organizationID := c.GetUint("organization_id")
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -136,7 +138,7 @@ func (h *JobHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	job, err := h.jobRepo.FindByID(uint(id), userID)
+	job, err := h.jobRepo.FindByID(uint(id), organizationID)
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
@@ -147,7 +149,7 @@ func (h *JobHandler) GetByID(c *gin.Context) {
 }
 
 func (h *JobHandler) Update(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	organizationID := c.GetUint("organization_id")
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -164,7 +166,7 @@ func (h *JobHandler) Update(c *gin.Context) {
 	}
 
 	// Fetch existing job
-	job, err := h.jobRepo.FindByID(uint(id), userID)
+	job, err := h.jobRepo.FindByID(uint(id), organizationID)
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
@@ -200,7 +202,7 @@ func (h *JobHandler) Update(c *gin.Context) {
 }
 
 func (h *JobHandler) AssignTechnician(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	organizationID := c.GetUint("organization_id")
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -214,7 +216,7 @@ func (h *JobHandler) AssignTechnician(c *gin.Context) {
 		return
 	}
 
-	if err := h.jobRepo.AssignTechnician(uint(id), userID, req.TechnicianID); err != nil {
+	if err := h.jobRepo.AssignTechnician(uint(id), organizationID, req.TechnicianID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign technician"})
 		return
 	}
@@ -225,8 +227,8 @@ func (h *JobHandler) AssignTechnician(c *gin.Context) {
 func (h *JobHandler) UpdateStatus(c *gin.Context) {
 	fmt.Println("🔍 UpdateStatus called") // DEBUG
 
-	userID := c.GetUint("user_id")
-	fmt.Println("🔍 UserID:", userID) // DEBUG
+	organizationID := c.GetUint("organization_id")
+	fmt.Println("🔍 OrganizationID:", organizationID) // DEBUG
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -274,7 +276,7 @@ func (h *JobHandler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
-	if err := h.jobRepo.UpdateStatus(uint(id), userID, status); err != nil {
+	if err := h.jobRepo.UpdateStatus(uint(id), organizationID, status); err != nil {
 		fmt.Println("❌ Failed to update in DB:", err) // DEBUG
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
 		return
@@ -285,7 +287,7 @@ func (h *JobHandler) UpdateStatus(c *gin.Context) {
 }
 
 func (h *JobHandler) Delete(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	organizationID := c.GetUint("organization_id")
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -293,7 +295,7 @@ func (h *JobHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.jobRepo.Delete(uint(id), userID); err != nil {
+	if err := h.jobRepo.Delete(uint(id), organizationID); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
 		return
 	}
