@@ -1,22 +1,22 @@
 import { useState, useEffect } from 'react';
-import { techniciansAPI } from '../api/client';
+import { workersAPI } from '../api/client';
 import Layout from '../components/Layout';
 
 const Technicians = () => {
-    const [technicians, setTechnicians] = useState([]);
+    const [technicians, setWorkers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingTechnician, setEditingTechnician] = useState(null);
     const [showActiveOnly, setShowActiveOnly] = useState(true);
 
     useEffect(() => {
-        loadTechnicians();
+        loadWorkers();
     }, [showActiveOnly]);
 
-    const loadTechnicians = async () => {
+    const loadWorkers = async () => {
         try {
-            const response = await techniciansAPI.getAll(showActiveOnly);
-            setTechnicians(response.data || []);
+            const response = await workersAPI.getAll(showActiveOnly);
+            setWorkers(response.data || []);
             setLoading(false);
         } catch (error) {
             console.error('Failed to load technicians:', error);
@@ -26,8 +26,8 @@ const Technicians = () => {
 
     const handleCreate = async (technicianData) => {
         try {
-            await techniciansAPI.create(technicianData);
-            await loadTechnicians();
+            await workersAPI.create(technicianData);
+            await loadWorkers();
             setShowModal(false);
         } catch (error) {
             console.error('Failed to create technician:', error);
@@ -37,8 +37,8 @@ const Technicians = () => {
 
     const handleUpdate = async (technicianData) => {
         try {
-            await techniciansAPI.update(editingTechnician.id, technicianData);
-            await loadTechnicians();
+            await workersAPI.update(editingTechnician.id, technicianData);
+            await loadWorkers();
             setEditingTechnician(null);
         } catch (error) {
             console.error('Failed to update technician:', error);
@@ -50,8 +50,8 @@ const Technicians = () => {
         if (!window.confirm('Are you sure you want to delete this technician?')) return;
 
         try {
-            await techniciansAPI.delete(technicianId);
-            await loadTechnicians();
+            await workersAPI.delete(technicianId);
+            await loadWorkers();
         } catch (error) {
             console.error('Failed to delete technician:', error);
             alert('Failed to delete technician');

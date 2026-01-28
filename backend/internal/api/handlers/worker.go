@@ -2,50 +2,51 @@ package handlers
 
 import (
 	"database/sql"
+	"net/http"
+	"strconv"
+
 	"github.com/getsentry/sentry-go"
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/models"
 	"github.com/ireuven89/routewise/internal/repository"
-	"net/http"
-	"strconv"
 )
 
-type TechnicianHandler struct {
-	technicianRepo *repository.TechnicianRepository
+type WorkerHandler struct {
+	workerRepo *repository.WorkerRepository
 }
 
-func NewTechnicianHandler(db *sql.DB) *TechnicianHandler {
-	return &TechnicianHandler{
-		technicianRepo: repository.NewTechnicianRepository(db),
+func NewWorkerHandler(db *sql.DB) *WorkerHandler {
+	return &WorkerHandler{
+		workerRepo: repository.NewWorkerRepository(db),
 	}
 }
 
-type CreateTechnicianRequest struct {
+type CreateWorkerRequest struct {
 	Name     string `json:"name" binding:"required"`
 	Email    string `json:"email"`
 	Phone    string `json:"phone" binding:"required"`
 	IsActive bool   `json:"is_active"`
 }
 
-type UpdateTechnicianRequest struct {
+type UpdateWorkerRequest struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
 	Phone    string `json:"phone"`
 	IsActive *bool  `json:"is_active"`
 }
 
-func (h *TechnicianHandler) Create(c *gin.Context) {
+func (h *WorkerHandler) Create(c *gin.Context) {
 	organizationID := c.GetUint("organization_id")
 	organizationUserID := c.GetUint("organization_user_id")
 
-	var req CreateTechnicianRequest
+	var req CreateWorkerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	technician := &models.Technician{
+	worker := &models.Worker{
 		OrganizationID: organizationID,
 		CreatedBy:      &organizationUserID,
 		Name:           req.Name,
@@ -54,96 +55,96 @@ func (h *TechnicianHandler) Create(c *gin.Context) {
 		IsActive:       true, // Default to active
 	}
 
-	if err := h.technicianRepo.Create(technician); err != nil {
+	if err := h.workerRepo.Create(worker); err != nil {
 		sentry.CaptureException(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create technician"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create worker"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, technician)
+	c.JSON(http.StatusCreated, worker)
 }
 
-func (h *TechnicianHandler) GetAll(c *gin.Context) {
+func (h *WorkerHandler) GetAll(c *gin.Context) {
 	organizationID := c.GetUint("organization_id")
 
 	activeOnly := c.Query("active_only") == "true"
 
-	technicians, err := h.technicianRepo.FindAll(organizationID, activeOnly)
+	technicians, err := h.workerRepo.FindAll(organizationID, activeOnly)
 	if err != nil {
 		sentry.CaptureException(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch technicians"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch workers"})
 		return
 	}
 
 	c.JSON(http.StatusOK, technicians)
 }
 
-func (h *TechnicianHandler) GetByID(c *gin.Context) {
+func (h *WorkerHandler) GetByID(c *gin.Context) {
 	organizationID := c.GetUint("organization_id")
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		sentry.CaptureException(err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid technician ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid worker ID"})
 		return
 	}
 
-	technician, err := h.technicianRepo.FindByID(uint(id), organizationID)
+	technician, err := h.workerRepo.FindByID(uint(id), organizationID)
 	if err != nil {
 		sentry.CaptureException(err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Technician not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Worker not found"})
 		return
 	}
 
 	c.JSON(http.StatusOK, technician)
 }
 
-func (h *TechnicianHandler) Update(c *gin.Context) {
+func (h *WorkerHandler) Update(c *gin.Context) {
 	organizationID := c.GetUint("organization_id")
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		sentry.CaptureException(err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid technician ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid worker ID"})
 		return
 	}
 
-	var req UpdateTechnicianRequest
+	var req UpdateWorkerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Fetch existing technician
-	technician, err := h.technicianRepo.FindByID(uint(id), organizationID)
+	// Fetch existing worker
+	worker, err := h.workerRepo.FindByID(uint(id), organizationID)
 	if err != nil {
 		sentry.CaptureException(err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Technician not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Worker not found"})
 		return
 	}
 
 	// Update fields
 	if req.Name != "" {
-		technician.Name = req.Name
+		worker.Name = req.Name
 	}
-	technician.Email = req.Email
+	worker.Email = req.Email
 	if req.Phone != "" {
-		technician.Phone = req.Phone
+		worker.Phone = req.Phone
 	}
 	if req.IsActive != nil {
-		technician.IsActive = *req.IsActive
+		worker.IsActive = *req.IsActive
 	}
 
-	if err := h.technicianRepo.Update(technician); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update technician"})
+	if err := h.workerRepo.Update(worker); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update worker"})
 		return
 	}
 
-	c.JSON(http.StatusOK, technician)
+	c.JSON(http.StatusOK, worker)
 }
 
-func (h *TechnicianHandler) Delete(c *gin.Context) {
+func (h *WorkerHandler) Delete(c *gin.Context) {
 	organizationID := c.GetUint("organization_id")
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -152,7 +153,7 @@ func (h *TechnicianHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.technicianRepo.Delete(uint(id), organizationID); err != nil {
+	if err := h.workerRepo.Delete(uint(id), organizationID); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Technician not found"})
 		return
 	}

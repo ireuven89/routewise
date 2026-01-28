@@ -2,10 +2,11 @@ package api
 
 import (
 	"database/sql"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/api/handlers"
 	"github.com/ireuven89/routewise/internal/api/middleware"
-	"time"
 )
 
 func SetupRoutes(router *gin.Engine, db *sql.DB) {
@@ -44,7 +45,7 @@ func SetupRoutes(router *gin.Engine, db *sql.DB) {
 	authHandler := handlers.NewAuthHandler(db)
 	jobHandler := handlers.NewJobHandler(db)
 	customerHandler := handlers.NewCustomerHandler(db)
-	technicianHandler := handlers.NewTechnicianHandler(db)
+	technicianHandler := handlers.NewWorkerHandler(db)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -76,11 +77,11 @@ func SetupRoutes(router *gin.Engine, db *sql.DB) {
 			protected.DELETE("/customers/:id", customerHandler.Delete)
 
 			// Technicians
-			protected.POST("/technicians", technicianHandler.Create)
-			protected.GET("/technicians", technicianHandler.GetAll)
-			protected.GET("/technicians/:id", technicianHandler.GetByID)
-			protected.PUT("/technicians/:id", technicianHandler.Update)
-			protected.DELETE("/technicians/:id", technicianHandler.Delete)
+			protected.POST("/workers", technicianHandler.Create)
+			protected.GET("/workers", technicianHandler.GetAll)
+			protected.GET("/workers/:id", technicianHandler.GetByID)
+			protected.PUT("/workers/:id", technicianHandler.Update)
+			protected.DELETE("/workers/:id", technicianHandler.Delete)
 
 		}
 	}

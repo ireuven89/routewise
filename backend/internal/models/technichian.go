@@ -16,3 +16,16 @@ type Technician struct {
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
+
+type Worker struct {
+	ID             uint      `json:"id"`
+	OrganizationID uint      `json:"organization_id"`
+	Name           string    `json:"name"`
+	Phone          string    `json:"phone"`
+	Email          string    `json:"email,omitempty"`
+	Role           string    `json:"role,omitempty"` // 'foreman', 'electrician', etc.
+	IsActive       bool      `json:"is_active"`
+	CreatedBy      *uint     `json:"created_by,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}

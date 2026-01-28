@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { jobsAPI, customersAPI, techniciansAPI } from '../api/client';
+import { jobsAPI, customersAPI, workersAPI } from '../api/client';
 import Layout from '../components/Layout';
 
 const Dashboard = () => {
     const [stats, setStats] = useState({
         totalJobs: 0,
         totalCustomers: 0,
-        totalTechnicians: 0,
+        totalWorkers: 0,
         scheduledJobs: 0,
         loading: true,
     });
@@ -18,10 +18,10 @@ const Dashboard = () => {
 
     const loadStats = async () => {
         try {
-            const [jobsRes, customersRes, techniciansRes] = await Promise.all([
+            const [jobsRes, customersRes, workersRes] = await Promise.all([
                 jobsAPI.getAll(),
                 customersAPI.getAll(),
-                techniciansAPI.getAll(false),
+                workersAPI.getAll(false),
             ]);
 
             const jobs = jobsRes.data || [];
@@ -30,7 +30,7 @@ const Dashboard = () => {
             setStats({
                 totalJobs: jobs.length,
                 totalCustomers: customersRes.data?.length || 0,
-                totalTechnicians: techniciansRes.data?.length || 0,
+                totalWorkers: workersRes.data?.length || 0,
                 scheduledJobs,
                 loading: false,
             });
@@ -77,7 +77,7 @@ const Dashboard = () => {
                     />
                     <StatCard
                         title="Technicians"
-                        value={stats.totalTechnicians}
+                        value={stats.totalWorkers}
                         link="/technicians"
                         color="orange"
                     />

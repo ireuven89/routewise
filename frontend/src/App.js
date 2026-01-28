@@ -6,7 +6,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Jobs from "./pages/Jobs";
 import Customers from "./pages/Customers";
-import Technicians from "./pages/Technichians";
+import Technicians from "./pages/Workers";
 
 function App() {
     return (
