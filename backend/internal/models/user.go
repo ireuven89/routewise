@@ -1,8 +1,9 @@
 package models
 
 import (
-	"golang.org/x/crypto/bcrypt"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Organization represents a company using the system

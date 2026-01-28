@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/ireuven89/routewise/pkg/utils"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/ireuven89/routewise/pkg/utils"
 )
 
 func AuthMiddleware() gin.HandlerFunc {
@@ -36,6 +37,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("organization_user_id", claims.OrganizationUserID)
 		c.Set("organization_id", claims.OrganizationID)
 		c.Set("user_email", claims.Email)
+		c.Set("user_type", claims.UserType)
 		c.Set("user_role", claims.Role)
 
 		c.Next()

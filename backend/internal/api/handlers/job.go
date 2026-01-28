@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/getsentry/sentry-go"
 	"io"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/getsentry/sentry-go"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/models"
@@ -221,7 +222,7 @@ func (h *JobHandler) AssignTechnician(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Technician assigned successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Worker assigned successfully"})
 }
 
 func (h *JobHandler) UpdateStatus(c *gin.Context) {

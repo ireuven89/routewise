@@ -2,20 +2,22 @@ package utils
 
 import (
 	"errors"
-	"github.com/golang-jwt/jwt/v5"
 	"os"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type Claims struct {
 	OrganizationUserID uint   `json:"organization_user_id"`
 	OrganizationID     uint   `json:"organization_id"`
 	Email              string `json:"email"`
+	UserType           string `json:"user_type"`
 	Role               string `json:"role"`
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(organizationUserID uint, organizationID uint, email string, role string) (string, error) {
+func GenerateToken(organizationUserID uint, organizationID uint, email string, role string, userType string) (string, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		return "", errors.New("JWT_SECRET not set")
@@ -25,6 +27,7 @@ func GenerateToken(organizationUserID uint, organizationID uint, email string, r
 		OrganizationUserID: organizationUserID,
 		OrganizationID:     organizationID,
 		Email:              email,
+		UserType:           userType,
 		Role:               role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)), // 24 hours

@@ -2,16 +2,18 @@ package api
 
 import (
 	"database/sql"
+	"log"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/api/handlers"
 	"github.com/ireuven89/routewise/internal/api/middleware"
+	"github.com/ireuven89/routewise/internal/repository"
+	"github.com/ireuven89/routewise/services"
 )
 
 func SetupRoutes(router *gin.Engine, db *sql.DB) {
 	// Health check
-
 	router.GET("/health", func(c *gin.Context) {
 		err := db.Ping()
 		if err != nil {
@@ -41,11 +43,22 @@ func SetupRoutes(router *gin.Engine, db *sql.DB) {
 		})
 	})
 
+	//initalize repositories
+	projectRepo := repository.NewJobRepository(db)
+	fileRepo := repository.NewFileRepository(db)
+
+	//initialize services
+	s3Service, err := services.NewS3Service()
+	if err != nil {
+		log.Fatal("Failed to connect to S3:", err)
+	}
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(db)
 	jobHandler := handlers.NewJobHandler(db)
 	customerHandler := handlers.NewCustomerHandler(db)
 	technicianHandler := handlers.NewWorkerHandler(db)
+	filesHandler := handlers.NewFileHandler(fileRepo, projectRepo, s3Service)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -83,6 +96,11 @@ func SetupRoutes(router *gin.Engine, db *sql.DB) {
 			protected.PUT("/workers/:id", technicianHandler.Update)
 			protected.DELETE("/workers/:id", technicianHandler.Delete)
 
+			//files
+			protected.POST("/projects/:id/files", filesHandler.Upload)
+			protected.GET("projects/:id/files", filesHandler.ListFiles)
+			protected.GET("/files/:id", filesHandler.GetFile)
+			protected.DELETE("/files/:id", filesHandler.DeleteFile)
 		}
 	}
 }

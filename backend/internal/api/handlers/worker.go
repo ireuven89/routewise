@@ -154,9 +154,9 @@ func (h *WorkerHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.workerRepo.Delete(uint(id), organizationID); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Technician not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Worker not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Technician deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Worker deleted successfully"})
 }
