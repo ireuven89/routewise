@@ -1,6 +1,10 @@
 package main
 
 import (
+	"log"
+	"os"
+	"time"
+
 	"github.com/getsentry/sentry-go"
 	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
@@ -8,9 +12,6 @@ import (
 	"github.com/ireuven89/routewise/internal/api/middleware"
 	"github.com/ireuven89/routewise/internal/config"
 	"github.com/joho/godotenv"
-	"log"
-	"os"
-	"time"
 )
 
 func main() {
@@ -38,7 +39,6 @@ func main() {
 
 	router := gin.Default()
 	router.Use(sentrygin.New(sentrygin.Options{}))
-
 	router.Use(middleware.Cors())
 
 	// Setup routes
@@ -51,5 +51,8 @@ func main() {
 	}
 
 	log.Printf("Server starting on port %s", port)
-	router.Run(":" + port)
+	if err = router.Run(":" + port); err != nil {
+		log.Printf("Failed to start server: %v", err)
+		log.Fatal(err)
+	}
 }

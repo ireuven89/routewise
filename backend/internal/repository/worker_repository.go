@@ -85,6 +85,47 @@ func (r *WorkerRepository) FindByID(id uint, organizationID uint) (*models.Worke
 	return worker, nil
 }
 
+func (r *WorkerRepository) FindByPhone(phone string, organizationID uint) (*models.Worker, error) {
+	query := `
+		SELECT id, organization_id, created_by, name, email, phone, is_active, created_at, updated_at
+		FROM workers
+		WHERE phone = $1 AND organization_id = $2
+	`
+
+	worker := &models.Worker{}
+	var email sql.NullString
+	var createdBy sql.NullInt64
+
+	err := r.db.QueryRow(query, phone, organizationID).Scan(
+		&worker.ID,
+		&worker.OrganizationID,
+		&createdBy,
+		&worker.Name,
+		&email,
+		&worker.Phone,
+		&worker.IsActive,
+		&worker.CreatedAt,
+		&worker.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("worker not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if createdBy.Valid {
+		cb := uint(createdBy.Int64)
+		worker.CreatedBy = &cb
+	}
+	if email.Valid {
+		worker.Email = email.String
+	}
+
+	return worker, nil
+}
+
 func (r *WorkerRepository) FindAll(organizationID uint, activeOnly bool) ([]*models.Worker, error) {
 	query := `
 		SELECT id, organization_id, created_by, name, email, phone, is_active, created_at, updated_at

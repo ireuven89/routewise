@@ -13,12 +13,14 @@ import (
 )
 
 type AuthHandler struct {
-	userRepo *repository.OrganizationUserRepository
+	userRepo   *repository.OrganizationUserRepository
+	workerRepo *repository.WorkerRepository
 }
 
 func NewAuthHandler(db *sql.DB) *AuthHandler {
 	return &AuthHandler{
-		userRepo: repository.NewUserRepository(db),
+		userRepo:   repository.NewUserRepository(db),
+		workerRepo: repository.NewWorkerRepository(db),
 	}
 }
 
@@ -93,7 +95,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	// Generate JWT token
-	token, err := utils.GenerateToken(user.ID, user.OrganizationID, user.Email, user.Role)
+	token, err := utils.GenerateToken(user.ID, user.OrganizationID, user.Email, user.Role, "user")
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
@@ -140,7 +142,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Generate JWT token
-	token, err := utils.GenerateToken(user.ID, user.OrganizationID, user.Email, user.Role)
+	token, err := utils.GenerateToken(user.ID, user.OrganizationID, user.Email, user.Role, "user")
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
