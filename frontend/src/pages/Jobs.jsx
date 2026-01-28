@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { jobsAPI, customersAPI, techniciansAPI } from '../api/client';
+import { jobsAPI, customersAPI, workersAPI } from '../api/client';
 import Layout from '../components/Layout';
 import { format } from 'date-fns';
 
 const Jobs = () => {
     const [jobs, setJobs] = useState([]);
     const [customers, setCustomers] = useState([]);
-    const [technicians, setTechnicians] = useState([]);
+    const [workers, setWorkers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all'); // all, scheduled, in_progress, completed
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -21,12 +21,12 @@ const Jobs = () => {
             const [jobsRes, customersRes, techniciansRes] = await Promise.all([
                 jobsAPI.getAll(),
                 customersAPI.getAll(),
-                techniciansAPI.getAll(true), // active only
+                workersAPI.getAll(true), // active only
             ]);
 
             setJobs(jobsRes.data || []);
             setCustomers(customersRes.data || []);
-            setTechnicians(techniciansRes.data || []);
+            setWorkers(techniciansRes.data || []);
             setLoading(false);
         } catch (error) {
             console.error('Failed to load data:', error);
@@ -146,7 +146,7 @@ const Jobs = () => {
                                 <JobItem
                                     key={job.id}
                                     job={job}
-                                    technicians={technicians}
+                                    technicians={workers}
                                     onEdit={() => setEditingJob(job)}
                                     onDelete={() => handleDeleteJob(job.id)}
                                     onAssignTechnician={handleAssignTechnician}
@@ -161,7 +161,7 @@ const Jobs = () => {
                 {showCreateModal && (
                     <JobModal
                         customers={customers}
-                        technicians={technicians}
+                        technicians={workers}
                         onSave={handleCreateJob}
                         onClose={() => setShowCreateModal(false)}
                     />
@@ -172,7 +172,7 @@ const Jobs = () => {
                     <JobModal
                         job={editingJob}
                         customers={customers}
-                        technicians={technicians}
+                        technicians={workers}
                         onSave={handleUpdateJob}
                         onClose={() => setEditingJob(null)}
                     />

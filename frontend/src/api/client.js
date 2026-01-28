@@ -68,14 +68,14 @@ export const customersAPI = {
 };
 
 // Technicians API
-export const techniciansAPI = {
-    getAll: (activeOnly) => apiClient.get('/api/v1/technicians', {
+export const workersAPI = {
+    getAll: (activeOnly) => apiClient.get('/api/v1/workers', {
         params: { active_only: activeOnly }
     }),
-    getById: (id) => apiClient.get(`/api/v1/technicians/${id}`),
-    create: (data) => apiClient.post('/api/v1/technicians', data),
-    update: (id, data) => apiClient.put(`/api/v1/technicians/${id}`, data),
-    delete: (id) => apiClient.delete(`/api/v1/technicians/${id}`),
+    getById: (id) => apiClient.get(`/api/v1/workers/${id}`),
+    create: (data) => apiClient.post('/api/v1/workers', data),
+    update: (id, data) => apiClient.put(`/api/v1/workers/${id}`, data),
+    delete: (id) => apiClient.delete(`/api/v1/workers/${id}`),
 };
 
 export default apiClient;

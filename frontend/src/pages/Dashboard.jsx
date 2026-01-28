@@ -12,14 +12,14 @@ import {
 } from 'react-icons/fa';
 import Layout from '../components/Layout';
 import { StatCardSkeleton, CardSkeleton } from '../components/Skeleton';
-import {customersAPI, jobsAPI, techniciansAPI} from '../api/client';
+import {customersAPI, jobsAPI, workersAPI} from '../api/client';
 
 const Dashboard = () => {
     const [stats, setStats] = useState({
         totalJobs: 0,
         scheduledJobs: 0,
         totalCustomers: 0,
-        totalTechnicians: 0,
+        totalWorkers: 0,
     });
     const [todayJobs, setTodayJobs] = useState([]);
     const [recentActivity, setRecentActivity] = useState([]);
@@ -36,7 +36,7 @@ const Dashboard = () => {
             const [jobsRes, customersRes, techniciansRes] = await Promise.all([
                 jobsAPI.getAll(),
                 customersAPI.getAll(),
-                techniciansAPI.getAll(false),
+                workersAPI.getAll(false),
             ]);
 
             const jobs = jobsRes.data || [];
@@ -60,7 +60,7 @@ const Dashboard = () => {
                 totalJobs: jobs.length,
                 scheduledJobs: scheduledJobs.length,
                 totalCustomers: customersRes.data?.length || 0,
-                totalTechnicians: techniciansRes.data?.length || 0,
+                totalWorkers: techniciansRes.data?.length || 0,
             });
 
             setTodayJobs(todayScheduled);
@@ -131,7 +131,7 @@ const Dashboard = () => {
                             />
                             <StatCard
                                 title="Technicians"
-                                value={stats.totalTechnicians}
+                                value={stats.totalWorkers}
                                 link="/technicians"
                                 icon={FaUserCog}
                                 color="orange"
