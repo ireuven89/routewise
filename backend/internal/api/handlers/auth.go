@@ -8,19 +8,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/models"
 	"github.com/ireuven89/routewise/internal/repository"
+	"github.com/ireuven89/routewise/internal/service"
 	"github.com/ireuven89/routewise/pkg/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthHandler struct {
-	userRepo   *repository.OrganizationUserRepository
-	workerRepo *repository.WorkerRepository
+	userRepo    *repository.OrganizationUserRepository
+	workerRepo  *repository.WorkerRepository
+	authService service.AuthService
 }
 
-func NewAuthHandler(db *sql.DB) *AuthHandler {
+func NewAuthHandler(db *sql.DB, authService service.AuthService) *AuthHandler {
 	return &AuthHandler{
-		userRepo:   repository.NewUserRepository(db),
-		workerRepo: repository.NewWorkerRepository(db),
+		userRepo:    repository.NewUserRepository(db),
+		workerRepo:  repository.NewWorkerRepository(db),
+		authService: authService,
 	}
 }
 
@@ -182,5 +185,67 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"user":         user,
 		"organization": org,
+	})
+}
+
+// RequestWorkerOTP handles POST /api/v1/workers/request-otp
+func (h *AuthHandler) RequestWorkerOTP(c *gin.Context) {
+	var req struct {
+		CompanyCode string `json:"company_code" binding:"required"`
+		Phone       string `json:"phone" binding:"required"`
+	}
+
+	// Parse JSON
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "company_code and phone are required"})
+		return
+	}
+
+	// Call service
+	err := h.authService.RequestWorkerOTP(req.Phone, req.CompanyCode)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Success
+	c.JSON(200, gin.H{
+		"message":    "Code sent to your phone",
+		"expires_in": 300, // 5 minutes
+	})
+}
+
+// VerifyWorkerOTP handles POST /api/v1/workers/verify-otp
+func (h *AuthHandler) VerifyWorkerOTP(c *gin.Context) {
+	var req struct {
+		CompanyCode string `json:"company_code" binding:"required"`
+		Phone       string `json:"phone" binding:"required"`
+		Code        string `json:"code" binding:"required"`
+	}
+
+	// Parse JSON
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "company_code, phone, and code are required"})
+		return
+	}
+
+	// Call service
+	worker, token, err := h.authService.VerifyWorkerOTP(req.Phone, req.CompanyCode, req.Code)
+	if err != nil {
+		c.JSON(401, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Success
+	c.JSON(200, gin.H{
+		"token": token,
+		"worker": gin.H{
+			"id":              worker.ID,
+			"organization_id": worker.OrganizationID,
+			"name":            worker.Name,
+			"phone":           worker.Phone,
+			"email":           worker.Email,
+			"role":            worker.Role,
+		},
 	})
 }

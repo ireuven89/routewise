@@ -85,24 +85,23 @@ func (r *WorkerRepository) FindByID(id uint, organizationID uint) (*models.Worke
 	return worker, nil
 }
 
-func (r *WorkerRepository) FindByPhone(phone string, organizationID uint) (*models.Worker, error) {
+func (r *WorkerRepository) FindByPhoneAndCompanyCode(phone, companyCode string) (*models.Worker, error) {
 	query := `
-		SELECT id, organization_id, created_by, name, email, phone, is_active, created_at, updated_at
-		FROM workers
-		WHERE phone = $1 AND organization_id = $2
-	`
+        SELECT w.id, w.organization_id, w.name, w.phone, w.email, w.is_active,  w.created_at, w.updated_at
+        FROM workers w
+        INNER JOIN organizations o ON w.organization_id = o.id
+        WHERE w.phone = $1 AND o.company_code = $2
+    `
 
-	worker := &models.Worker{}
+	var worker models.Worker
 	var email sql.NullString
-	var createdBy sql.NullInt64
 
-	err := r.db.QueryRow(query, phone, organizationID).Scan(
+	err := r.db.QueryRow(query, phone, companyCode).Scan(
 		&worker.ID,
 		&worker.OrganizationID,
-		&createdBy,
 		&worker.Name,
-		&email,
 		&worker.Phone,
+		&email,
 		&worker.IsActive,
 		&worker.CreatedAt,
 		&worker.UpdatedAt,
@@ -115,15 +114,12 @@ func (r *WorkerRepository) FindByPhone(phone string, organizationID uint) (*mode
 		return nil, err
 	}
 
-	if createdBy.Valid {
-		cb := uint(createdBy.Int64)
-		worker.CreatedBy = &cb
-	}
+	// Handle nullable fields
 	if email.Valid {
 		worker.Email = email.String
 	}
 
-	return worker, nil
+	return &worker, nil
 }
 
 func (r *WorkerRepository) FindAll(organizationID uint, activeOnly bool) ([]*models.Worker, error) {
