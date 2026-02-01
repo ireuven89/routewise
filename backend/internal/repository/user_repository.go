@@ -25,12 +25,12 @@ func (r *OrganizationUserRepository) CreateOrganizationWithUser(org *models.Orga
 
 	// Create organization
 	orgQuery := `
-		INSERT INTO organizations (name, phone, industry, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO organizations (name, phone, industry, company_code, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id
 	`
 	now := time.Now()
-	err = tx.QueryRow(orgQuery, org.Name, org.Phone, org.Industry, now, now).Scan(&org.ID)
+	err = tx.QueryRow(orgQuery, org.Name, org.Phone, org.Industry, org.CompanyCode, now, now).Scan(&org.ID)
 	if err != nil {
 		return err
 	}
