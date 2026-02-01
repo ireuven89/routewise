@@ -1,26 +1,22 @@
 package handlers
 
 import (
-	"database/sql"
 	"net/http"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/models"
-	"github.com/ireuven89/routewise/internal/repository"
+	"github.com/ireuven89/routewise/internal/service"
 	"github.com/ireuven89/routewise/pkg/utils"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthHandler struct {
-	userRepo   *repository.OrganizationUserRepository
-	workerRepo *repository.WorkerRepository
+	authService service.AuthService
 }
 
-func NewAuthHandler(db *sql.DB) *AuthHandler {
+func NewAuthHandler(authService service.AuthService) *AuthHandler {
 	return &AuthHandler{
-		userRepo:   repository.NewUserRepository(db),
-		workerRepo: repository.NewWorkerRepository(db),
+		authService: authService,
 	}
 }
 
@@ -52,58 +48,26 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Check if user already exists
-	existingUser, _ := h.userRepo.FindByEmail(req.Email)
-	if existingUser != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
-		return
-	}
+	ctx := c.Request.Context()
 
-	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	user, org, token, err := h.authService.RegisterOrganization(ctx,
+		req.Email,
+		req.Password,
+		req.Name,
+		req.Phone,
+		req.CompanyName,
+		req.Industry)
+
 	if err != nil {
+		// Check error type for appropriate status code
+		if err.Error() == "Email already registered" {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
 		sentry.CaptureException(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process password"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Create organization
-	org := &models.Organization{
-		Name:     req.CompanyName,
-		Phone:    req.Phone,
-		Industry: req.Industry,
-	}
-
-	if org.Industry == "" {
-		org.Industry = "hvac"
-	}
-
-	// Create user
-	user := &models.OrganizationUser{
-		Email:    req.Email,
-		Password: string(hashedPassword),
-		Name:     req.Name,
-		Role:     "owner",
-		Phone:    req.Phone,
-	}
-
-	// Create both in transaction
-	if err := h.userRepo.CreateOrganizationWithUser(org, user); err != nil {
-		sentry.CaptureException(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create account"})
-		return
-	}
-
-	// Generate JWT token
-	token, err := utils.GenerateToken(user.ID, user.OrganizationID, user.Email, user.Role, "user")
-	if err != nil {
-		sentry.CaptureException(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		return
-	}
-
-	// Don't return password
-	user.Password = ""
 
 	c.JSON(http.StatusCreated, AuthResponse{
 		Token:        token,
@@ -120,38 +84,20 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Find user by email
-	user, err := h.userRepo.FindByEmail(req.Email)
+	// Call service (all logic is there)
+	ctx := c.Request.Context()
+	user, org, token, err := h.authService.Login(ctx, req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
-		return
-	}
-
-	// Verify password
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
-		return
-	}
-
-	// Get organization
-	org, err := h.userRepo.FindOrganizationByID(user.OrganizationID)
-	if err != nil {
+		if err.Error() == "Invalid credentials" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
 		sentry.CaptureException(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch organization"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Generate JWT token
-	token, err := utils.GenerateToken(user.ID, user.OrganizationID, user.Email, user.Role, "user")
-	if err != nil {
-		sentry.CaptureException(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		return
-	}
-
-	// Don't return password
-	user.Password = ""
-
+	// Return response
 	c.JSON(http.StatusOK, AuthResponse{
 		Token:        token,
 		User:         user,
@@ -162,25 +108,86 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) GetProfile(c *gin.Context) {
 	organizationUserID := c.GetUint("organization_user_id")
 
-	user, err := h.userRepo.FindByID(organizationUserID)
+	user, org, err := h.authService.GetUserProfile(organizationUserID)
 	if err != nil {
+		if err.Error() == "User not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		}
 		sentry.CaptureException(err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	org, err := h.userRepo.FindOrganizationByID(user.OrganizationID)
-	if err != nil {
-		sentry.CaptureException(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch organization"})
-		return
-	}
-
-	// Don't return password
-	user.Password = ""
 
 	c.JSON(http.StatusOK, gin.H{
 		"user":         user,
 		"organization": org,
+	})
+}
+
+// RequestWorkerOTP handles POST /api/v1/workers/request-otp
+func (h *AuthHandler) RequestWorkerOTP(c *gin.Context) {
+	var req struct {
+		CompanyCode string `json:"company_code" binding:"required"`
+		Phone       string `json:"phone" binding:"required"`
+	}
+
+	// Parse JSON
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "company_code and phone are required"})
+		return
+	}
+
+	validatedPhone, err := utils.ValidatePhone(req.Phone)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Call service
+	err = h.authService.RequestWorkerOTP(validatedPhone, req.CompanyCode)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Success
+	c.JSON(200, gin.H{
+		"message":    "Code sent to your phone",
+		"expires_in": 300, // 5 minutes
+	})
+}
+
+// VerifyWorkerOTP handles POST /api/v1/workers/verify-otp
+func (h *AuthHandler) VerifyWorkerOTP(c *gin.Context) {
+	var req struct {
+		CompanyCode string `json:"company_code" binding:"required"`
+		Phone       string `json:"phone" binding:"required"`
+		Code        string `json:"code" binding:"required"`
+	}
+
+	// Parse JSON
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "company_code, phone, and code are required"})
+		return
+	}
+
+	// Call service
+	worker, token, err := h.authService.VerifyWorkerOTP(req.Phone, req.CompanyCode, req.Code)
+	if err != nil {
+		c.JSON(401, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Success
+	c.JSON(200, gin.H{
+		"token": token,
+		"worker": gin.H{
+			"id":              worker.ID,
+			"organization_id": worker.OrganizationID,
+			"name":            worker.Name,
+			"phone":           worker.Phone,
+			"email":           worker.Email,
+			"role":            worker.Role,
+		},
 	})
 }

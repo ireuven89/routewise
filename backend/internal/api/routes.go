@@ -9,6 +9,7 @@ import (
 	"github.com/ireuven89/routewise/internal/api/handlers"
 	"github.com/ireuven89/routewise/internal/api/middleware"
 	"github.com/ireuven89/routewise/internal/repository"
+	"github.com/ireuven89/routewise/internal/service"
 	"github.com/ireuven89/routewise/services"
 )
 
@@ -43,18 +44,23 @@ func SetupRoutes(router *gin.Engine, db *sql.DB) {
 		})
 	})
 
-	//initalize repositories
+	//initialize repositories
 	projectRepo := repository.NewJobRepository(db)
 	fileRepo := repository.NewFileRepository(db)
+	otpRepo := repository.NewOTPRepository(db)
+	workerRepo := repository.NewWorkerRepository(db)
+	organizationUser := repository.NewUserRepository(db)
 
 	//initialize services
 	s3Service, err := services.NewS3Service()
+	authService := service.NewAuthService(workerRepo, otpRepo, organizationUser)
+
 	if err != nil {
 		log.Fatal("Failed to connect to S3:", err)
 	}
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(db)
+	authHandler := handlers.NewAuthHandler(authService)
 	jobHandler := handlers.NewJobHandler(db)
 	customerHandler := handlers.NewCustomerHandler(db)
 	technicianHandler := handlers.NewWorkerHandler(db)
@@ -66,6 +72,8 @@ func SetupRoutes(router *gin.Engine, db *sql.DB) {
 		// Public auth routes
 		v1.POST("/register", authHandler.Register)
 		v1.POST("/login", authHandler.Login)
+		v1.POST("/workers/request-otp", authHandler.RequestWorkerOTP)
+		v1.POST("/worker/verify-otp", authHandler.VerifyWorkerOTP)
 
 		// Protected routes
 		protected := v1.Group("")

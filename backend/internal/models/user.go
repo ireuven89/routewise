@@ -8,12 +8,13 @@ import (
 
 // Organization represents a company using the system
 type Organization struct {
-	ID        uint      `json:"id"`
-	Name      string    `json:"name"`
-	Phone     string    `json:"phone"`
-	Industry  string    `json:"industry"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID          uint      `json:"id"`
+	Name        string    `json:"name"`
+	CompanyCode string    `json:"company_code"`
+	Phone       string    `json:"phone"`
+	Industry    string    `json:"industry"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // OrganizationUser represents admins/dispatchers who manage the organization
