@@ -1,15 +1,16 @@
 import {useState, useEffect, useCallback} from 'react';
 import { customersAPI } from '../api/client';
 import Layout from '../components/Layout';
+import { useLanguage } from '../context/LanguageContext';
 
 const Customers = () => {
+    const { t } = useLanguage();
     const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // ✅ Define loadCustomers FIRST
     const loadCustomers = useCallback(async () => {
         try {
             setLoading(true);
@@ -22,7 +23,6 @@ const Customers = () => {
         }
     }, [searchTerm]);
 
-    // ✅ THEN use it in useEffect
     useEffect(() => {
         loadCustomers();
     }, [loadCustomers]);
@@ -34,7 +34,7 @@ const Customers = () => {
             setShowModal(false);
         } catch (error) {
             console.error('Failed to create customer:', error);
-            alert('Failed to create customer');
+            alert(t('customers.failedCreate'));
         }
     };
 
@@ -45,19 +45,19 @@ const Customers = () => {
             setEditingCustomer(null);
         } catch (error) {
             console.error('Failed to update customer:', error);
-            alert('Failed to update customer');
+            alert(t('customers.failedUpdate'));
         }
     };
 
     const handleDelete = async (customerId) => {
-        if (!window.confirm('Are you sure you want to delete this customer?')) return;
+        if (!window.confirm(t('customers.deleteConfirm'))) return;
 
         try {
             await customersAPI.delete(customerId);
             await loadCustomers();
         } catch (error) {
             console.error('Failed to delete customer:', error);
-            alert('Failed to delete customer');
+            alert(t('customers.failedDelete'));
         }
     };
 
@@ -65,7 +65,7 @@ const Customers = () => {
         return (
             <Layout>
                 <div className="flex justify-center items-center h-64">
-                    <div className="text-lg text-gray-600">Loading customers...</div>
+                    <div className="text-lg text-gray-600">{t('customers.loading')}</div>
                 </div>
             </Layout>
         );
@@ -76,12 +76,12 @@ const Customers = () => {
             <div className="px-4 sm:px-0">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-3xl font-bold text-gray-900">Customers</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">{t('customers.title')}</h1>
                     <button
                         onClick={() => setShowModal(true)}
                         className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium"
                     >
-                        + Add Customer
+                        {t('customers.addCustomer')}
                     </button>
                 </div>
 
@@ -89,7 +89,7 @@ const Customers = () => {
                 <div className="mb-6">
                     <input
                         type="text"
-                        placeholder="Search customers..."
+                        placeholder={t('customers.searchPlaceholder')}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-md"
@@ -99,7 +99,7 @@ const Customers = () => {
                 {/* Customers List */}
                 {customers.length === 0 ? (
                     <div className="bg-white shadow rounded-lg p-8 text-center">
-                        <p className="text-gray-500">No customers found. Add your first customer!</p>
+                        <p className="text-gray-500">{t('customers.noCustomers')}</p>
                     </div>
                 ) : (
                     <div className="bg-white shadow overflow-hidden rounded-lg">
@@ -120,18 +120,18 @@ const Customers = () => {
                                                 <p className="text-sm text-gray-500 mt-2 italic">{customer.notes}</p>
                                             )}
                                         </div>
-                                        <div className="flex space-x-3">
+                                        <div className="flex gap-3">
                                             <button
                                                 onClick={() => setEditingCustomer(customer)}
                                                 className="text-blue-600 hover:text-blue-800 font-medium"
                                             >
-                                                Edit
+                                                {t('jobs.edit')}
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(customer.id)}
                                                 className="text-red-600 hover:text-red-800 font-medium"
                                             >
-                                                Delete
+                                                {t('jobs.delete')}
                                             </button>
                                         </div>
                                     </div>
@@ -163,6 +163,7 @@ const Customers = () => {
 };
 
 const CustomerModal = ({ customer, onSave, onClose }) => {
+    const { t } = useLanguage();
     const [formData, setFormData] = useState({
         name: customer?.name || '',
         email: customer?.email || '',
@@ -188,13 +189,13 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
             <div className="bg-white rounded-lg max-w-md w-full">
                 <div className="px-6 py-4 border-b border-gray-200">
                     <h2 className="text-xl font-semibold text-gray-900">
-                        {customer ? 'Edit Customer' : 'Add New Customer'}
+                        {customer ? t('customers.editCustomer') : t('customers.addNewCustomer')}
                     </h2>
                 </div>
 
                 <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Name *</label>
+                        <label className="block text-sm font-medium text-gray-700">{t('customers.name')}</label>
                         <input
                             type="text"
                             name="name"
@@ -206,7 +207,7 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Phone *</label>
+                        <label className="block text-sm font-medium text-gray-700">{t('customers.phone')}</label>
                         <input
                             type="tel"
                             name="phone"
@@ -218,7 +219,7 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Email</label>
+                        <label className="block text-sm font-medium text-gray-700">{t('customers.email')}</label>
                         <input
                             type="email"
                             name="email"
@@ -229,20 +230,20 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Address *</label>
+                        <label className="block text-sm font-medium text-gray-700">{t('customers.address')}</label>
                         <input
                             type="text"
                             name="address"
                             value={formData.address}
                             onChange={handleChange}
                             required
-                            placeholder="123 Main St, City, State"
+                            placeholder={t('customers.addressPlaceholder')}
                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Notes</label>
+                        <label className="block text-sm font-medium text-gray-700">{t('customers.notes')}</label>
                         <textarea
                             name="notes"
                             value={formData.notes}
@@ -252,19 +253,19 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
                         />
                     </div>
 
-                    <div className="flex justify-end space-x-3 pt-4">
+                    <div className="flex justify-end gap-3 pt-4">
                         <button
                             type="button"
                             onClick={onClose}
                             className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                         >
-                            Cancel
+                            {t('customers.cancel')}
                         </button>
                         <button
                             type="submit"
                             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
                         >
-                            {customer ? 'Update' : 'Add'} Customer
+                            {customer ? t('customers.update') : t('customers.add')} {t('customers.customer')}
                         </button>
                     </div>
                 </form>

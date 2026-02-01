@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaCalendarAlt } from 'react-icons/fa';
+import { FaCalendarAlt, FaWrench, FaHardHat, FaGlobe } from 'react-icons/fa';
 import { authAPI } from "../api/client";
 import { formatPhone } from "../utils/phone";
+import { useLanguage } from '../context/LanguageContext';
 
 const COUNTRY_CODES = [
     { code: '+1', country: 'US/Canada', flag: '🇺🇸' },
@@ -17,17 +18,24 @@ const COUNTRY_CODES = [
 
 const Register = () => {
     const navigate = useNavigate();
+    const { t, language, toggleLanguage } = useLanguage();
     const [formData, setFormData] = useState({
         name: '',
-        countryCode: '+1',
+        countryCode: '+972', // default Israel
         phoneNumber: '',
         companyName: '',
         email: '',
         password: '',
         confirmPassword: '',
+        industry: '',
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    const INDUSTRIES = [
+        { value: 'hvac', label: 'HVAC', icon: FaWrench, desc: t('auth.hvacDesc') },
+        { value: 'construction', label: language === 'he' ? 'בנייה' : 'Construction', icon: FaHardHat, desc: t('auth.constructionDesc') },
+    ];
 
     const handleChange = (e) => {
         setFormData({
@@ -36,17 +44,29 @@ const Register = () => {
         });
     };
 
+    const handleIndustrySelect = (value) => {
+        setFormData({
+            ...formData,
+            industry: value,
+        });
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
 
+        if (!formData.industry) {
+            setError(t('auth.selectIndustry'));
+            return;
+        }
+
         if (formData.password !== formData.confirmPassword) {
-            setError('Passwords do not match');
+            setError(t('auth.passwordsNoMatch'));
             return;
         }
 
         if (formData.password.length < 6) {
-            setError('Password must be at least 6 characters');
+            setError(t('auth.passwordTooShort'));
             return;
         }
 
@@ -59,11 +79,15 @@ const Register = () => {
                 company_name: formData.companyName,
                 email: formData.email,
                 password: formData.password,
+                industry: formData.industry,
             });
             const data = response.data;
 
             localStorage.setItem('token', data.token);
             localStorage.setItem('user', JSON.stringify(data.user));
+            if (data.organization) {
+                localStorage.setItem('organization', JSON.stringify(data.organization));
+            }
 
             window.location.href = '/dashboard';
 
@@ -94,10 +118,23 @@ const Register = () => {
 
                 {/* Card */}
                 <div className="bg-white rounded-2xl shadow-2xl p-8">
+
+                    {/* Language toggle */}
+                    <div className="flex justify-end mb-4">
+                        <button
+                            type="button"
+                            onClick={toggleLanguage}
+                            className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                        >
+                            <FaGlobe className="w-3.5 h-3.5" />
+                            {language === 'he' ? 'English' : 'עברית'}
+                        </button>
+                    </div>
+
                     {/* Header */}
                     <div className="mb-8 text-center">
-                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Create your account</h2>
-                        <p className="text-gray-600">Get started with RouteWise</p>
+                        <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('auth.createAccount')}</h2>
+                        <p className="text-gray-600">{t('auth.getStarted')}</p>
                     </div>
 
                     {/* Error Message */}
@@ -109,10 +146,45 @@ const Register = () => {
 
                     {/* Register Form */}
                     <form onSubmit={handleSubmit} className="space-y-5">
+
+                        {/* Industry Picker */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                {t('auth.industryQuestion')}
+                            </label>
+                            <div className="flex gap-3">
+                                {INDUSTRIES.map((ind) => {
+                                    const Icon = ind.icon;
+                                    const isSelected = formData.industry === ind.value;
+                                    return (
+                                        <button
+                                            key={ind.value}
+                                            type="button"
+                                            onClick={() => handleIndustrySelect(ind.value)}
+                                            className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all duration-150 ${
+                                                isSelected
+                                                    ? 'border-transparent text-white shadow-md'
+                                                    : 'border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-gray-100'
+                                            }`}
+                                            style={isSelected ? { backgroundColor: '#ff6b35' } : {}}
+                                        >
+                                            <Icon className={`w-6 h-6 ${isSelected ? 'text-white' : 'text-gray-500'}`} />
+                                            <span className={`text-sm font-semibold ${isSelected ? 'text-white' : 'text-gray-700'}`}>
+                                                {ind.label}
+                                            </span>
+                                            <span className={`text-xs text-center leading-tight ${isSelected ? 'text-orange-100' : 'text-gray-400'}`}>
+                                                {ind.desc}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
                         {/* Company Name */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Company Name
+                                {t('auth.companyName')}
                             </label>
                             <input
                                 type="text"
@@ -121,15 +193,14 @@ const Register = () => {
                                 onChange={handleChange}
                                 required
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent transition-all"
-                                style={{ focusRingColor: '#ff6b35' }}
-                                placeholder="ABC HVAC Services"
+                                placeholder={formData.industry === 'construction' ? t('auth.companyPlaceholderConstruction') : t('auth.companyPlaceholderHvac')}
                             />
                         </div>
 
                         {/* Your Name */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Your Name
+                                {t('auth.yourName')}
                             </label>
                             <input
                                 type="text"
@@ -138,17 +209,16 @@ const Register = () => {
                                 onChange={handleChange}
                                 required
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent transition-all"
-                                placeholder="John Smith"
+                                placeholder={t('auth.namePlaceholder')}
                             />
                         </div>
 
                         {/* Phone Number with Country Code */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Phone Number
+                                {t('auth.phoneNumber')}
                             </label>
                             <div className="flex gap-2">
-                                {/* Country Code Dropdown */}
                                 <select
                                     name="countryCode"
                                     value={formData.countryCode}
@@ -162,8 +232,6 @@ const Register = () => {
                                         </option>
                                     ))}
                                 </select>
-
-                                {/* Phone Input */}
                                 <input
                                     type="tel"
                                     name="phoneNumber"
@@ -171,18 +239,18 @@ const Register = () => {
                                     onChange={handleChange}
                                     required
                                     className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent transition-all"
-                                    placeholder="501234567"
+                                    placeholder={t('auth.phonePlaceholder')}
                                 />
                             </div>
                             <p className="text-xs text-gray-500 mt-1">
-                                Full number: {formatPhone(formData.countryCode, formData.phoneNumber)}
+                                {t('auth.fullNumber')} {formatPhone(formData.countryCode, formData.phoneNumber)}
                             </p>
                         </div>
 
                         {/* Email */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Email Address
+                                {t('auth.email')}
                             </label>
                             <input
                                 type="email"
@@ -191,14 +259,14 @@ const Register = () => {
                                 onChange={handleChange}
                                 required
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent transition-all"
-                                placeholder="you@company.com"
+                                placeholder={t('auth.emailPlaceholder')}
                             />
                         </div>
 
                         {/* Password */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Password
+                                {t('auth.password')}
                             </label>
                             <input
                                 type="password"
@@ -207,14 +275,14 @@ const Register = () => {
                                 onChange={handleChange}
                                 required
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent transition-all"
-                                placeholder="At least 6 characters"
+                                placeholder={t('auth.passwordHint')}
                             />
                         </div>
 
                         {/* Confirm Password */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Confirm Password
+                                {t('auth.confirmPassword')}
                             </label>
                             <input
                                 type="password"
@@ -223,7 +291,7 @@ const Register = () => {
                                 onChange={handleChange}
                                 required
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent transition-all"
-                                placeholder="Confirm your password"
+                                placeholder={t('auth.confirmPasswordPlaceholder')}
                             />
                         </div>
 
@@ -234,7 +302,7 @@ const Register = () => {
                             className="w-full text-white py-3 rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:-translate-y-0.5 transition-all"
                             style={{ backgroundColor: '#ff6b35' }}
                         >
-                            {loading ? 'Creating account...' : 'Create account'}
+                            {loading ? t('auth.creatingAccount') : t('auth.createAccountBtn')}
                         </button>
                     </form>
 
@@ -245,7 +313,7 @@ const Register = () => {
                                 <div className="w-full border-t border-gray-300"></div>
                             </div>
                             <div className="relative flex justify-center text-sm">
-                                <span className="px-4 bg-white text-gray-500">Already have an account?</span>
+                                <span className="px-4 bg-white text-gray-500">{t('auth.alreadyHaveAccount')}</span>
                             </div>
                         </div>
                     </div>
@@ -255,13 +323,13 @@ const Register = () => {
                         to="/login"
                         className="block w-full text-center bg-gray-50 border border-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-100 hover:border-gray-400 transition-all"
                     >
-                        Sign in
+                        {t('auth.signIn')}
                     </Link>
                 </div>
 
                 {/* Footer */}
                 <p className="text-center text-sm mt-6" style={{ color: 'rgba(255,255,255,0.7)' }}>
-                    © 2026 RouteWise. HVAC scheduling software.
+                    {t('footer.copyright')}
                 </p>
             </div>
         </div>

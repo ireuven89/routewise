@@ -2,13 +2,19 @@ import { useState, useEffect } from 'react';
 import { jobsAPI, customersAPI, workersAPI } from '../api/client';
 import Layout from '../components/Layout';
 import { format } from 'date-fns';
+import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 
 const Jobs = () => {
+    const { t } = useLanguage();
+    const { organization } = useAuth();
+    const industry = organization?.industry || 'hvac';
+
     const [jobs, setJobs] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [workers, setWorkers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState('all'); // all, scheduled, in_progress, completed
+    const [filter, setFilter] = useState('all');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingJob, setEditingJob] = useState(null);
 
@@ -21,9 +27,8 @@ const Jobs = () => {
             const [jobsRes, customersRes, techniciansRes] = await Promise.all([
                 jobsAPI.getAll(),
                 customersAPI.getAll(),
-                workersAPI.getAll(true), // active only
+                workersAPI.getAll(true),
             ]);
-
             setJobs(jobsRes.data || []);
             setCustomers(customersRes.data || []);
             setWorkers(techniciansRes.data || []);
@@ -41,7 +46,7 @@ const Jobs = () => {
             setShowCreateModal(false);
         } catch (error) {
             console.error('Failed to create job:', error);
-            alert('Failed to create job');
+            alert(t('jobs.failedCreate'));
         }
     };
 
@@ -52,7 +57,7 @@ const Jobs = () => {
             setEditingJob(null);
         } catch (error) {
             console.error('Failed to update job:', error);
-            alert('Failed to update job');
+            alert(t('jobs.failedUpdate'));
         }
     };
 
@@ -62,7 +67,7 @@ const Jobs = () => {
             await loadData();
         } catch (error) {
             console.error('Failed to assign technician:', error);
-            alert('Failed to assign technician');
+            alert(t('jobs.failedAssign'));
         }
     };
 
@@ -72,19 +77,19 @@ const Jobs = () => {
             await loadData();
         } catch (error) {
             console.error('Failed to update status:', error);
-            alert('Failed to update status');
+            alert(t('jobs.failedStatus'));
         }
     };
 
     const handleDeleteJob = async (jobId) => {
-        if (!window.confirm('Are you sure you want to delete this job?')) return;
+        if (!window.confirm(t('jobs.deleteConfirm'))) return;
 
         try {
             await jobsAPI.delete(jobId);
             await loadData();
         } catch (error) {
             console.error('Failed to delete job:', error);
-            alert('Failed to delete job');
+            alert(t('jobs.failedDelete'));
         }
     };
 
@@ -93,11 +98,20 @@ const Jobs = () => {
         return job.status === filter;
     });
 
+    // Filter button labels
+    const filterLabels = {
+        all: t('jobs.filterAll'),
+        scheduled: t('status.scheduled'),
+        in_progress: t('status.inProgress'),
+        completed: t('status.completed'),
+        cancelled: t('status.cancelled'),
+    };
+
     if (loading) {
         return (
             <Layout>
                 <div className="flex justify-center items-center h-64">
-                    <div className="text-lg text-gray-600">Loading jobs...</div>
+                    <div className="text-lg text-gray-600">{t('jobs.loading')}</div>
                 </div>
             </Layout>
         );
@@ -108,12 +122,12 @@ const Jobs = () => {
             <div className="px-4 sm:px-0">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-3xl font-bold text-gray-900">Jobs</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">{t(`industry.${industry}.jobs`)}</h1>
                     <button
                         onClick={() => setShowCreateModal(true)}
                         className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium"
                     >
-                        + Create Job
+                        {t('jobs.createJob')}
                     </button>
                 </div>
 
@@ -129,7 +143,7 @@ const Jobs = () => {
                                     : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                             }`}
                         >
-                            {status === 'all' ? 'All' : status.replace('_', ' ').toUpperCase()}
+                            {filterLabels[status]}
                         </button>
                     ))}
                 </div>
@@ -137,7 +151,7 @@ const Jobs = () => {
                 {/* Jobs List */}
                 {filteredJobs.length === 0 ? (
                     <div className="bg-white shadow rounded-lg p-8 text-center">
-                        <p className="text-gray-500">No jobs found. Create your first job!</p>
+                        <p className="text-gray-500">{t('jobs.noJobs')}</p>
                     </div>
                 ) : (
                     <div className="bg-white shadow overflow-hidden rounded-lg">
@@ -182,8 +196,10 @@ const Jobs = () => {
     );
 };
 
-// Job Item Component
+// ─── JobItem ──────────────────────────────────────────────────────────────────
 const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpdateStatus }) => {
+    const { t } = useLanguage();
+
     const statusColors = {
         scheduled: 'bg-blue-100 text-blue-800',
         in_progress: 'bg-yellow-100 text-yellow-800',
@@ -191,10 +207,12 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
         cancelled: 'bg-red-100 text-red-800',
     };
 
-/*    const getTechnicianName = (techId) => {
-        const tech = technicians.find(t => t.id === techId);
-        return tech ? tech.name : 'Unassigned';
-    };*/
+    const statusLabels = {
+        scheduled: t('status.scheduled'),
+        in_progress: t('status.inProgress'),
+        completed: t('status.completed'),
+        cancelled: t('status.cancelled'),
+    };
 
     return (
         <li className="px-6 py-4 hover:bg-gray-50">
@@ -207,7 +225,7 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
                                 {job.customer?.name} • {job.customer?.address}
                             </p>
                             <p className="text-sm text-gray-500">
-                                Scheduled: {format(new Date(job.scheduled_at), 'PPp')}
+                                {t('jobs.scheduled')} {format(new Date(job.scheduled_at), 'PPp')}
                             </p>
                             {job.description && (
                                 <p className="text-sm text-gray-600 mt-2">{job.description}</p>
@@ -216,17 +234,17 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
                         <div className="flex items-center space-x-4">
                             {job.price && (
                                 <span className="text-lg font-semibold text-gray-900">
-                  ${job.price.toFixed(2)}
-                </span>
+                                    ${job.price.toFixed(2)}
+                                </span>
                             )}
                         </div>
                     </div>
 
-                    <div className="mt-3 flex items-center space-x-4">
+                    <div className="mt-3 flex items-center gap-4">
                         {/* Status Badge */}
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[job.status]}`}>
-              {job.status.replace('_', ' ').toUpperCase()}
-            </span>
+                            {statusLabels[job.status]}
+                        </span>
 
                         {/* Technician Assignment */}
                         <select
@@ -234,7 +252,7 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
                             onChange={(e) => onAssignTechnician(job.id, e.target.value ? parseInt(e.target.value) : null)}
                             className="text-sm border-gray-300 rounded-md"
                         >
-                            <option value="">Unassigned</option>
+                            <option value="">{t('jobs.unassigned')}</option>
                             {technicians.map(tech => (
                                 <option key={tech.id} value={tech.id}>
                                     {tech.name}
@@ -242,13 +260,13 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
                             ))}
                         </select>
 
-                        {/* Status Update */}
+                        {/* Status Update Buttons */}
                         {job.status === 'scheduled' && (
                             <button
                                 onClick={() => onUpdateStatus(job.id, 'in_progress')}
                                 className="text-sm bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded-md"
                             >
-                                Start Job
+                                {t('jobs.startJob')}
                             </button>
                         )}
                         {job.status === 'in_progress' && (
@@ -256,22 +274,16 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
                                 onClick={() => onUpdateStatus(job.id, 'completed')}
                                 className="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md"
                             >
-                                Complete
+                                {t('jobs.complete')}
                             </button>
                         )}
 
                         {/* Edit/Delete */}
-                        <button
-                            onClick={onEdit}
-                            className="text-sm text-blue-600 hover:text-blue-800"
-                        >
-                            Edit
+                        <button onClick={onEdit} className="text-sm text-blue-600 hover:text-blue-800">
+                            {t('jobs.edit')}
                         </button>
-                        <button
-                            onClick={onDelete}
-                            className="text-sm text-red-600 hover:text-red-800"
-                        >
-                            Delete
+                        <button onClick={onDelete} className="text-sm text-red-600 hover:text-red-800">
+                            {t('jobs.delete')}
                         </button>
                     </div>
                 </div>
@@ -280,8 +292,12 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
     );
 };
 
-// Job Modal Component
+// ─── JobModal ─────────────────────────────────────────────────────────────────
 const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
+    const { t } = useLanguage();
+    const { organization } = useAuth();
+    const industry = organization?.industry || 'hvac';
+
     const [formData, setFormData] = useState({
         customer_id: job?.customer_id || '',
         technician_id: job?.technician_id || '',
@@ -302,7 +318,6 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-
         const jobData = {
             ...formData,
             customer_id: parseInt(formData.customer_id),
@@ -310,7 +325,6 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
             price: formData.price ? parseFloat(formData.price) : null,
             scheduled_at: new Date(formData.scheduled_at).toISOString(),
         };
-
         onSave(jobData);
     };
 
@@ -319,7 +333,7 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
             <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="px-6 py-4 border-b border-gray-200">
                     <h2 className="text-xl font-semibold text-gray-900">
-                        {job ? 'Edit Job' : 'Create New Job'}
+                        {job ? t('jobs.editJob') : t('jobs.createNewJob')}
                     </h2>
                 </div>
 
@@ -327,7 +341,7 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
                     {/* Customer */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700">
-                            Customer *
+                            {t('jobs.customerLabel')}
                         </label>
                         <select
                             name="customer_id"
@@ -336,7 +350,7 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
                             required
                             className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                         >
-                            <option value="">Select a customer</option>
+                            <option value="">{t('jobs.selectCustomer')}</option>
                             {customers.map(customer => (
                                 <option key={customer.id} value={customer.id}>
                                     {customer.name} - {customer.address}
@@ -348,7 +362,7 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
                     {/* Technician */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700">
-                            Technician (optional)
+                            {t('jobs.technicianLabel')}
                         </label>
                         <select
                             name="technician_id"
@@ -356,7 +370,7 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
                             onChange={handleChange}
                             className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                         >
-                            <option value="">Unassigned</option>
+                            <option value="">{t('jobs.unassigned')}</option>
                             {technicians.map(tech => (
                                 <option key={tech.id} value={tech.id}>
                                     {tech.name}
@@ -368,7 +382,7 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
                     {/* Title */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700">
-                            Job Title *
+                            {t('jobs.jobTitle')}
                         </label>
                         <input
                             type="text"
@@ -376,7 +390,7 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
                             value={formData.title}
                             onChange={handleChange}
                             required
-                            placeholder="AC Repair"
+                            placeholder={t('jobs.jobTitlePlaceholder')}
                             className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
@@ -384,14 +398,14 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
                     {/* Description */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700">
-                            Description
+                            {t('jobs.description')}
                         </label>
                         <textarea
                             name="description"
                             value={formData.description}
                             onChange={handleChange}
                             rows={3}
-                            placeholder="Unit not cooling properly..."
+                            placeholder={t('jobs.descriptionPlaceholder')}
                             className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
@@ -399,7 +413,7 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
                     {/* Scheduled Date/Time */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700">
-                            Scheduled Date & Time *
+                            {t('jobs.scheduledDateTime')}
                         </label>
                         <input
                             type="datetime-local"
@@ -414,7 +428,7 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
                     {/* Duration */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700">
-                            Duration (minutes)
+                            {t('jobs.duration')}
                         </label>
                         <input
                             type="number"
@@ -430,7 +444,7 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
                     {/* Price */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700">
-                            Price ($)
+                            {t('jobs.price')}
                         </label>
                         <input
                             type="number"
@@ -445,19 +459,19 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
                     </div>
 
                     {/* Buttons */}
-                    <div className="flex justify-end space-x-3 pt-4">
+                    <div className="flex justify-end gap-3 pt-4">
                         <button
                             type="button"
                             onClick={onClose}
                             className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                         >
-                            Cancel
+                            {t('jobs.cancel')}
                         </button>
                         <button
                             type="submit"
                             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                         >
-                            {job ? 'Update Job' : 'Create Job'}
+                            {job ? t('jobs.updateJob') : t('jobs.createJobBtn')}
                         </button>
                     </div>
                 </form>

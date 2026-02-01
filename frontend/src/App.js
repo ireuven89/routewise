@@ -7,10 +7,13 @@ import Dashboard from './pages/Dashboard';
 import Jobs from "./pages/Jobs";
 import Customers from "./pages/Customers";
 import Workers from "./pages/Workers";
+import './rtl.css';
+import {LanguageProvider} from "./context/LanguageContext";
 
 function App() {
     return (
         <Router>
+            <LanguageProvider>
             <AuthProvider>
                 <Routes>
                     <Route path="/login" element={<Login />} />
@@ -54,6 +57,7 @@ function App() {
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
             </AuthProvider>
+            </LanguageProvider>
         </Router>
     );
 }
