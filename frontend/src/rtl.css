@@ -1,0 +1,76 @@
+/* ─── RTL overrides for Tailwind ─────────────────────────────────────────────
+   Tailwind's utility classes (ml-, pl-, left-, text-left, etc.) are hardcoded
+   LTR. This file flips them when the root <html> has dir="rtl".
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* Sidebar: flip from left to right */
+[dir="rtl"] .sidebar-left {
+    left: auto !important;
+    right: 0 !important;
+}
+
+/* Main content: flip margin to make room for sidebar */
+[dir="rtl"] .main-with-sidebar {
+    margin-left: 0 !important;
+    margin-right: 16rem !important; /* matches sidebar w-64 = 16rem */
+}
+
+/* Text alignment */
+[dir="rtl"] .text-left { text-align: right !important; }
+[dir="rtl"] .text-right { text-align: left !important; }
+
+/* Margins */
+[dir="rtl"] .ml-1 { margin-left: 0 !important; margin-right: 0.25rem !important; }
+[dir="rtl"] .ml-2 { margin-left: 0 !important; margin-right: 0.5rem !important; }
+[dir="rtl"] .ml-3 { margin-left: 0 !important; margin-right: 0.75rem !important; }
+[dir="rtl"] .ml-4 { margin-left: 0 !important; margin-right: 1rem !important; }
+[dir="rtl"] .ml-6 { margin-left: 0 !important; margin-right: 1.5rem !important; }
+[dir="rtl"] .mr-1 { margin-right: 0 !important; margin-left: 0.25rem !important; }
+[dir="rtl"] .mr-2 { margin-right: 0 !important; margin-left: 0.5rem !important; }
+[dir="rtl"] .mr-3 { margin-right: 0 !important; margin-left: 0.75rem !important; }
+[dir="rtl"] .mr-4 { margin-right: 0 !important; margin-left: 1rem !important; }
+[dir="rtl"] .mr-6 { margin-right: 0 !important; margin-left: 1.5rem !important; }
+
+/* Padding */
+[dir="rtl"] .pl-4 { padding-left: 0 !important; padding-right: 1rem !important; }
+[dir="rtl"] .pl-5 { padding-left: 0 !important; padding-right: 1.25rem !important; }
+[dir="rtl"] .pr-4 { padding-right: 0 !important; padding-left: 1rem !important; }
+[dir="rtl"] .pr-5 { padding-right: 0 !important; padding-left: 1.25rem !important; }
+
+/* Borders */
+[dir="rtl"] .border-l { border-left: none !important; border-right-width: 1px !important; }
+[dir="rtl"] .border-r { border-right: none !important; border-left-width: 1px !important; }
+[dir="rtl"] .border-l-2 { border-left: none !important; border-right-width: 2px !important; }
+
+/* Border radius */
+[dir="rtl"] .rounded-l-lg { border-radius: 0 0.5rem 0.5rem 0 !important; }
+[dir="rtl"] .rounded-r-lg { border-radius: 0.5rem 0 0 0.5rem !important; }
+[dir="rtl"] .rounded-tl-lg { border-top-left-radius: 0 !important; border-top-right-radius: 0.5rem !important; }
+[dir="rtl"] .rounded-tr-lg { border-top-right-radius: 0 !important; border-top-left-radius: 0.5rem !important; }
+[dir="rtl"] .rounded-bl-lg { border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0.5rem !important; }
+[dir="rtl"] .rounded-br-lg { border-bottom-right-radius: 0 !important; border-bottom-left-radius: 0.5rem !important; }
+
+/* Positioned elements */
+[dir="rtl"] .left-0 { left: auto !important; right: 0 !important; }
+[dir="rtl"] .right-0 { right: auto !important; left: 0 !important; }
+
+/* Chevrons / arrows — rotate 180° to flip direction */
+[dir="rtl"] .chevron-flip {
+    transform: scaleX(-1);
+}
+
+/* Gradient direction flip for banners */
+[dir="rtl"] .gradient-lr {
+    background: linear-gradient(to left, var(--gradient-start), var(--gradient-end)) !important;
+}
+
+/* Divider: "Already have an account?" centering — works same in both directions */
+/* No override needed, flexbox centering is direction-agnostic */
+
+/* Input text: keep LTR for emails, passwords, phone numbers */
+[dir="rtl"] input[type="email"],
+[dir="rtl"] input[type="password"],
+[dir="rtl"] input[type="tel"] {
+    direction: ltr;
+    text-align: right;
+}

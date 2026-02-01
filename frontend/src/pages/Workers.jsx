@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { workersAPI } from '../api/client';
 import Layout from '../components/Layout';
-import {formatPhone} from "../utils/phone";
+import { formatPhone } from "../utils/phone";
+import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 
 const COUNTRY_CODES = [
     { code: '+1', country: 'US/Canada', flag: '🇺🇸' },
@@ -14,10 +16,8 @@ const COUNTRY_CODES = [
     { code: '+52', country: 'Mexico', flag: '🇲🇽' },
 ];
 
-// Split stored phone "+9721234567890" into { countryCode: "+972", phoneNumber: "1234567890" }
 const splitPhone = (fullPhone) => {
     if (!fullPhone) return { countryCode: '+1', phoneNumber: '' };
-
     const match = COUNTRY_CODES.find((c) => fullPhone.startsWith(c.code));
     if (match) {
         return {
@@ -25,11 +25,14 @@ const splitPhone = (fullPhone) => {
             phoneNumber: fullPhone.slice(match.code.length),
         };
     }
-
     return { countryCode: '+1', phoneNumber: fullPhone };
 };
 
 const Workers = () => {
+    const { t } = useLanguage();
+    const { organization } = useAuth();
+    const industry = organization?.industry || 'hvac';
+
     const [workers, setWorkers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -58,7 +61,7 @@ const Workers = () => {
             setShowModal(false);
         } catch (error) {
             console.error('Failed to create worker:', error);
-            alert('Failed to create worker');
+            alert(t('workers.failedCreate'));
         }
     };
 
@@ -69,19 +72,19 @@ const Workers = () => {
             setEditingWorker(null);
         } catch (error) {
             console.error('Failed to update worker:', error);
-            alert('Failed to update worker');
+            alert(t('workers.failedUpdate'));
         }
     };
 
     const handleDelete = async (workerId) => {
-        if (!window.confirm('Are you sure you want to delete this worker?')) return;
+        if (!window.confirm(t('workers.deleteConfirm'))) return;
 
         try {
             await workersAPI.delete(workerId);
             await loadWorkers();
         } catch (error) {
             console.error('Failed to delete worker:', error);
-            alert('Failed to delete worker');
+            alert(t('workers.failedDelete'));
         }
     };
 
@@ -89,7 +92,7 @@ const Workers = () => {
         return (
             <Layout>
                 <div className="flex justify-center items-center h-64">
-                    <div className="text-lg text-gray-600">Loading workers...</div>
+                    <div className="text-lg text-gray-600">{t('workers.loading')}</div>
                 </div>
             </Layout>
         );
@@ -100,13 +103,13 @@ const Workers = () => {
             <div className="px-4 sm:px-0">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-3xl font-bold text-gray-900">Workers</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">{t(`industry.${industry}.workers`)}</h1>
                     <button
                         onClick={() => setShowModal(true)}
                         style={{ backgroundColor: '#ff6b35' }}
                         className="hover:opacity-90 text-white px-4 py-2 rounded-md font-medium"
                     >
-                        + Add Worker
+                        {t(`industry.${industry}.addWorker`)}
                     </button>
                 </div>
 
@@ -120,14 +123,14 @@ const Workers = () => {
                             className="rounded border-gray-300"
                             style={{ accentColor: '#1e3a5f' }}
                         />
-                        <span className="ml-2 text-sm text-gray-700">Show active only</span>
+                        <span className="ml-2 text-sm text-gray-700">{t('workers.showActiveOnly')}</span>
                     </label>
                 </div>
 
                 {/* Workers List */}
                 {workers.length === 0 ? (
                     <div className="bg-white shadow rounded-lg p-8 text-center">
-                        <p className="text-gray-500">No workers found. Add your first worker!</p>
+                        <p className="text-gray-500">{t('workers.noWorkers')}</p>
                     </div>
                 ) : (
                     <div className="bg-white shadow overflow-hidden rounded-lg">
@@ -140,20 +143,20 @@ const Workers = () => {
                                                 <h3 className="text-lg font-medium text-gray-900">{worker.name}</h3>
                                                 {worker.is_active ? (
                                                     <span className="ml-3 px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                            Active
-                          </span>
+                                                        {t('workers.active')}
+                                                    </span>
                                                 ) : (
                                                     <span className="ml-3 px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                            Inactive
-                          </span>
+                                                        {t('workers.inactive')}
+                                                    </span>
                                                 )}
                                                 {worker.role && (
                                                     <span
                                                         className="ml-3 px-2 py-1 text-xs font-medium rounded-full text-white"
                                                         style={{ backgroundColor: '#1e3a5f' }}
                                                     >
-                            {worker.role}
-                          </span>
+                                                        {worker.role}
+                                                    </span>
                                                 )}
                                             </div>
                                             <p className="text-sm text-gray-500 mt-1">
@@ -161,19 +164,19 @@ const Workers = () => {
                                                 {worker.email && ` • ✉️ ${worker.email}`}
                                             </p>
                                         </div>
-                                        <div className="flex space-x-3">
+                                        <div className="flex gap-3">
                                             <button
                                                 onClick={() => setEditingWorker(worker)}
                                                 style={{ color: '#1e3a5f' }}
                                                 className="hover:opacity-70 font-medium"
                                             >
-                                                Edit
+                                                {t('jobs.edit')}
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(worker.id)}
                                                 className="text-red-600 hover:text-red-800 font-medium"
                                             >
-                                                Delete
+                                                {t('jobs.delete')}
                                             </button>
                                         </div>
                                     </div>
@@ -200,7 +203,10 @@ const Workers = () => {
 };
 
 const WorkerModal = ({ worker, onSave, onClose }) => {
-    // Split existing phone into countryCode + phoneNumber
+    const { t } = useLanguage();
+    const { organization } = useAuth();
+    const industry = organization?.industry || 'hvac';
+
     const { countryCode: existingCode, phoneNumber: existingNumber } = splitPhone(worker?.phone);
 
     const [formData, setFormData] = useState({
@@ -222,16 +228,13 @@ const WorkerModal = ({ worker, onSave, onClose }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-
-        // Combine country code + phone before sending
         const payload = {
             name: formData.name,
             email: formData.email,
-            phone: formatPhone(formData.countryCode, formData.phoneNumber), // "+972" + "1234567890"
+            phone: formatPhone(formData.countryCode, formData.phoneNumber),
             role: formData.role,
             is_active: formData.is_active,
         };
-
         onSave(payload);
     };
 
@@ -244,14 +247,14 @@ const WorkerModal = ({ worker, onSave, onClose }) => {
                     style={{ backgroundColor: '#1e3a5f' }}
                 >
                     <h2 className="text-xl font-semibold text-white">
-                        {worker ? 'Edit Worker' : 'Add New Worker'}
+                        {worker ? t('workers.editWorker') : t('workers.addNewWorker')}
                     </h2>
                 </div>
 
                 <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
                     {/* Name */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Name *</label>
+                        <label className="block text-sm font-medium text-gray-700">{t('workers.name')}</label>
                         <input
                             type="text"
                             name="name"
@@ -259,15 +262,13 @@ const WorkerModal = ({ worker, onSave, onClose }) => {
                             onChange={handleChange}
                             required
                             className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2"
-                            style={{ focusRingColor: '#ff6b35' }}
                         />
                     </div>
 
-                    {/* Phone with Country Code */}
+                    {/* Phone */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Phone *</label>
+                        <label className="block text-sm font-medium text-gray-700">{t('workers.phone')}</label>
                         <div className="flex gap-2 mt-1">
-                            {/* Country Code Dropdown */}
                             <select
                                 name="countryCode"
                                 value={formData.countryCode}
@@ -281,8 +282,6 @@ const WorkerModal = ({ worker, onSave, onClose }) => {
                                     </option>
                                 ))}
                             </select>
-
-                            {/* Phone Number Input */}
                             <input
                                 type="tel"
                                 name="phoneNumber"
@@ -294,13 +293,13 @@ const WorkerModal = ({ worker, onSave, onClose }) => {
                             />
                         </div>
                         <p className="text-xs text-gray-500 mt-1">
-                            Full number: {formData.countryCode}{formData.phoneNumber}
+                            {t('workers.fullNumber')} {formData.countryCode}{formData.phoneNumber}
                         </p>
                     </div>
 
                     {/* Email */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Email</label>
+                        <label className="block text-sm font-medium text-gray-700">{t('workers.email')}</label>
                         <input
                             type="email"
                             name="email"
@@ -312,18 +311,18 @@ const WorkerModal = ({ worker, onSave, onClose }) => {
 
                     {/* Role */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Role</label>
+                        <label className="block text-sm font-medium text-gray-700">{t('workers.role')}</label>
                         <select
                             name="role"
                             value={formData.role}
                             onChange={handleChange}
                             className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2"
                         >
-                            <option value="">Select role</option>
-                            <option value="Worker">Worker</option>
-                            <option value="Foreman">Foreman</option>
-                            <option value="Supervisor">Supervisor</option>
-                            <option value="Technician">Technician</option>
+                            <option value="">{t('workers.selectRole')}</option>
+                            <option value="Worker">{t('workers.roleWorker')}</option>
+                            <option value="Foreman">{t('workers.roleForeman')}</option>
+                            <option value="Supervisor">{t('workers.roleSupervisor')}</option>
+                            <option value="Technician">{t('workers.roleTechnician')}</option>
                         </select>
                     </div>
 
@@ -338,25 +337,25 @@ const WorkerModal = ({ worker, onSave, onClose }) => {
                                 className="rounded border-gray-300"
                                 style={{ accentColor: '#1e3a5f' }}
                             />
-                            <span className="ml-2 text-sm text-gray-700">Active</span>
+                            <span className="ml-2 text-sm text-gray-700">{t('workers.activeToggle')}</span>
                         </label>
                     </div>
 
                     {/* Buttons */}
-                    <div className="flex justify-end space-x-3 pt-4">
+                    <div className="flex justify-end gap-3 pt-4">
                         <button
                             type="button"
                             onClick={onClose}
                             className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                         >
-                            Cancel
+                            {t('workers.cancel')}
                         </button>
                         <button
                             type="submit"
                             style={{ backgroundColor: '#ff6b35' }}
                             className="px-4 py-2 text-white rounded-md hover:opacity-90"
                         >
-                            {worker ? 'Update' : 'Add'} Worker
+                            {worker ? t('workers.update') : t('workers.add')} {t(`industry.${industry}.workerSingle`)}
                         </button>
                     </div>
                 </form>
