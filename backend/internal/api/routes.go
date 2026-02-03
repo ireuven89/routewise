@@ -50,11 +50,13 @@ func SetupRoutes(router *gin.Engine, db *sql.DB) {
 	otpRepo := repository.NewOTPRepository(db)
 	workerRepo := repository.NewWorkerRepository(db)
 	organizationUser := repository.NewUserRepository(db)
+	jobRepo := repository.NewJobRepository(db)
 
 	//initialize services
 	s3Service, err := services.NewS3Service()
 	authService := service.NewAuthService(workerRepo, otpRepo, organizationUser)
 	workerService := service.NewWorkerService(workerRepo)
+	jobService := service.NewJobService(jobRepo)
 
 	if err != nil {
 		log.Fatal("Failed to connect to S3:", err)
@@ -62,7 +64,7 @@ func SetupRoutes(router *gin.Engine, db *sql.DB) {
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
-	jobHandler := handlers.NewJobHandler(db)
+	jobHandler := handlers.NewJobHandler(jobService)
 	customerHandler := handlers.NewCustomerHandler(db)
 	technicianHandler := handlers.NewWorkerHandler(workerService)
 	filesHandler := handlers.NewFileHandler(fileRepo, projectRepo, s3Service)
