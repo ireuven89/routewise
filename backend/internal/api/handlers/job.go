@@ -1,30 +1,26 @@
 package handlers
 
 import (
-	"bytes"
-	"database/sql"
-	"fmt"
-	"io"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/getsentry/sentry-go"
-
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/models"
-	"github.com/ireuven89/routewise/internal/repository"
+	"github.com/ireuven89/routewise/internal/service"
 )
 
 type JobHandler struct {
-	jobRepo *repository.JobRepository
+	service service.JobService
 }
 
-func NewJobHandler(db *sql.DB) *JobHandler {
-	return &JobHandler{
-		jobRepo: repository.NewJobRepository(db),
-	}
+func NewJobHandler(svc service.JobService) *JobHandler {
+	return &JobHandler{service: svc}
 }
+
+// --- Request DTOs ---
 
 type CreateJobRequest struct {
 	CustomerID      uint        `json:"customer_id" binding:"required"`
@@ -55,6 +51,8 @@ type UpdateStatusRequest struct {
 	Status string `json:"status" binding:"required"`
 }
 
+// --- Handlers ---
+
 func (h *JobHandler) Create(c *gin.Context) {
 	organizationID := c.GetUint("organization_id")
 	organizationUserID := c.GetUint("organization_user_id")
@@ -66,25 +64,19 @@ func (h *JobHandler) Create(c *gin.Context) {
 		return
 	}
 
-	job := &models.Job{
+	job, err := h.service.Create(service.CreateJobInput{
 		OrganizationID:  organizationID,
-		CreatedBy:       &organizationUserID,
+		CreatedBy:       organizationUserID,
 		CustomerID:      req.CustomerID,
 		TechnicianID:    req.TechnicianID,
 		Title:           req.Title,
 		Description:     req.Description,
-		Status:          models.StatusScheduled,
 		ScheduledAt:     req.ScheduledAt,
 		DurationMinutes: req.DurationMinutes,
 		Price:           req.Price,
 		Metadata:        req.Metadata,
-	}
-
-	if job.DurationMinutes == 0 {
-		job.DurationMinutes = 60 // Default 1 hour
-	}
-
-	if err := h.jobRepo.Create(job); err != nil {
+	})
+	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create job"})
 		return
@@ -96,30 +88,20 @@ func (h *JobHandler) Create(c *gin.Context) {
 func (h *JobHandler) GetAll(c *gin.Context) {
 	organizationID := c.GetUint("organization_id")
 
-	// Parse filters
 	filters := make(map[string]interface{})
-
 	if status := c.Query("status"); status != "" {
 		filters["status"] = status
 	}
-
 	if techIDStr := c.Query("technician_id"); techIDStr != "" {
-		techID, err := strconv.ParseUint(techIDStr, 10, 32)
-		if err == nil {
+		if techID, err := strconv.ParseUint(techIDStr, 10, 32); err == nil {
 			filters["technician_id"] = uint(techID)
 		}
 	}
-
 	if date := c.Query("date"); date != "" {
 		filters["scheduled_date"] = date
 	}
 
-	sortBy := c.Query("sort")
-	if sortBy == "" {
-		sortBy = "created_at" // Default sort
-	}
-
-	jobs, err := h.jobRepo.FindAll(organizationID, filters, sortBy)
+	jobs, err := h.service.GetAll(organizationID, filters, c.Query("sort"))
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch jobs"})
@@ -134,14 +116,12 @@ func (h *JobHandler) GetByID(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
 		return
 	}
 
-	job, err := h.jobRepo.FindByID(uint(id), organizationID)
+	job, err := h.service.GetByID(uint(id), organizationID)
 	if err != nil {
-		sentry.CaptureException(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
 		return
 	}
@@ -154,7 +134,6 @@ func (h *JobHandler) Update(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		sentry.CaptureException(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
 		return
 	}
@@ -166,34 +145,20 @@ func (h *JobHandler) Update(c *gin.Context) {
 		return
 	}
 
-	// Fetch existing job
-	job, err := h.jobRepo.FindByID(uint(id), organizationID)
+	job, err := h.service.Update(uint(id), organizationID, service.UpdateJobInput{
+		Title:           req.Title,
+		Description:     req.Description,
+		ScheduledAt:     req.ScheduledAt,
+		DurationMinutes: req.DurationMinutes,
+		Price:           req.Price,
+		Status:          req.Status,
+		Metadata:        req.Metadata,
+	})
 	if err != nil {
-		sentry.CaptureException(err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
-		return
-	}
-
-	// Update fields
-	if req.Title != "" {
-		job.Title = req.Title
-	}
-	job.Description = req.Description
-	if !req.ScheduledAt.IsZero() {
-		job.ScheduledAt = req.ScheduledAt
-	}
-	if req.DurationMinutes > 0 {
-		job.DurationMinutes = req.DurationMinutes
-	}
-	job.Price = req.Price
-	if req.Status != "" {
-		job.Status = models.JobStatus(req.Status)
-	}
-	if req.Metadata != nil {
-		job.Metadata = req.Metadata
-	}
-
-	if err := h.jobRepo.Update(job); err != nil {
+		if errors.Is(err, service.ErrJobNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
+			return
+		}
 		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update job"})
 		return
@@ -217,7 +182,8 @@ func (h *JobHandler) AssignTechnician(c *gin.Context) {
 		return
 	}
 
-	if err := h.jobRepo.AssignTechnician(uint(id), organizationID, req.TechnicianID); err != nil {
+	if err := h.service.AssignTechnician(uint(id), organizationID, req.TechnicianID); err != nil {
+		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign technician"})
 		return
 	}
@@ -226,64 +192,30 @@ func (h *JobHandler) AssignTechnician(c *gin.Context) {
 }
 
 func (h *JobHandler) UpdateStatus(c *gin.Context) {
-	fmt.Println("🔍 UpdateStatus called") // DEBUG
-
 	organizationID := c.GetUint("organization_id")
-	fmt.Println("🔍 OrganizationID:", organizationID) // DEBUG
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		fmt.Println("❌ Invalid job ID:", err) // DEBUG
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
 		return
 	}
-	fmt.Println("🔍 Job ID:", id) // DEBUG
-
-	// DEBUG: Check request details
-	fmt.Println("🔍 Content-Type:", c.GetHeader("Content-Type"))
-	fmt.Println("🔍 Content-Length:", c.Request.ContentLength)
-	fmt.Println("🔍 Method:", c.Request.Method)
-
-	// DEBUG: Try to read body manually
-	bodyBytes, _ := io.ReadAll(c.Request.Body)
-	fmt.Println("🔍 Raw body:", string(bodyBytes))
-
-	// IMPORTANT: Reset body so ShouldBindJSON can read it
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	var req UpdateStatusRequest
-	fmt.Println("🔍 About to bind JSON...") // DEBUG
-
 	if err := c.ShouldBindJSON(&req); err != nil {
-		fmt.Println("❌ Failed to bind JSON:", err) // DEBUG
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("🔍 Successfully bound JSON, status:", req.Status) // DEBUG
 
-	status := models.JobStatus(req.Status)
-
-	// Validate status
-	validStatuses := map[models.JobStatus]bool{
-		models.StatusScheduled:  true,
-		models.StatusInProgress: true,
-		models.StatusCompleted:  true,
-		models.StatusCancelled:  true,
-	}
-
-	if !validStatuses[status] {
-		fmt.Println("❌ Invalid status:", status) // DEBUG
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status"})
-		return
-	}
-
-	if err := h.jobRepo.UpdateStatus(uint(id), organizationID, status); err != nil {
-		fmt.Println("❌ Failed to update in DB:", err) // DEBUG
+	if err := h.service.UpdateStatus(uint(id), organizationID, req.Status); err != nil {
+		if errors.Is(err, service.ErrInvalidStatus) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status"})
+			return
+		}
+		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
 		return
 	}
 
-	fmt.Println("✅ Status updated successfully") // DEBUG
 	c.JSON(http.StatusOK, gin.H{"message": "Status updated successfully"})
 }
 
@@ -296,7 +228,7 @@ func (h *JobHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.jobRepo.Delete(uint(id), organizationID); err != nil {
+	if err := h.service.Delete(uint(id), organizationID); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
 		return
 	}
