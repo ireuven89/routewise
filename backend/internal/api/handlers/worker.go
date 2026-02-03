@@ -1,23 +1,21 @@
 package handlers
 
 import (
-	"database/sql"
 	"net/http"
 	"strconv"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/gin-gonic/gin"
-	"github.com/ireuven89/routewise/internal/models"
-	"github.com/ireuven89/routewise/internal/repository"
+	"github.com/ireuven89/routewise/internal/service"
 )
 
 type WorkerHandler struct {
-	workerRepo *repository.WorkerRepository
+	workerService service.WorkerService
 }
 
-func NewWorkerHandler(db *sql.DB) *WorkerHandler {
+func NewWorkerHandler(service service.WorkerService) *WorkerHandler {
 	return &WorkerHandler{
-		workerRepo: repository.NewWorkerRepository(db),
+		workerService: service,
 	}
 }
 
@@ -46,16 +44,17 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		return
 	}
 
-	worker := &models.Worker{
+	ctx := c.Request.Context()
+
+	worker, err := h.workerService.Create(ctx, service.CreateWorkerInput{
 		OrganizationID: organizationID,
-		CreatedBy:      &organizationUserID,
+		CreatedBy:      organizationUserID,
 		Name:           req.Name,
 		Email:          req.Email,
 		Phone:          req.Phone,
-		IsActive:       true, // Default to active
-	}
+	})
 
-	if err := h.workerRepo.Create(worker); err != nil {
+	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create worker"})
 		return
@@ -69,7 +68,9 @@ func (h *WorkerHandler) GetAll(c *gin.Context) {
 
 	activeOnly := c.Query("active_only") == "true"
 
-	technicians, err := h.workerRepo.FindAll(organizationID, activeOnly)
+	ctx := c.Request.Context()
+
+	technicians, err := h.workerService.GetAll(ctx, organizationID, activeOnly)
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch workers"})
@@ -89,7 +90,8 @@ func (h *WorkerHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	technician, err := h.workerRepo.FindByID(uint(id), organizationID)
+	ctx := c.Request.Context()
+	technician, err := h.workerService.GetByID(ctx, uint(id), organizationID)
 	if err != nil {
 		sentry.CaptureException(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Worker not found"})
@@ -116,27 +118,15 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 		return
 	}
 
-	// Fetch existing worker
-	worker, err := h.workerRepo.FindByID(uint(id), organizationID)
+	ctx := c.Request.Context()
+	worker, err := h.workerService.Update(ctx, uint(id), organizationID, service.UpdateWorkerInput{
+		Name:     req.Name,
+		Email:    req.Email,
+		Phone:    req.Phone,
+		IsActive: req.IsActive,
+	})
+
 	if err != nil {
-		sentry.CaptureException(err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Worker not found"})
-		return
-	}
-
-	// Update fields
-	if req.Name != "" {
-		worker.Name = req.Name
-	}
-	worker.Email = req.Email
-	if req.Phone != "" {
-		worker.Phone = req.Phone
-	}
-	if req.IsActive != nil {
-		worker.IsActive = *req.IsActive
-	}
-
-	if err := h.workerRepo.Update(worker); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update worker"})
 		return
 	}
@@ -153,7 +143,9 @@ func (h *WorkerHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.workerRepo.Delete(uint(id), organizationID); err != nil {
+	ctx := c.Request.Context()
+
+	if err := h.workerService.Delete(ctx, uint(id), organizationID); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Worker not found"})
 		return
 	}
