@@ -9,8 +9,12 @@ import (
 	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/api"
+	"github.com/ireuven89/routewise/internal/api/handlers"
 	"github.com/ireuven89/routewise/internal/api/middleware"
 	"github.com/ireuven89/routewise/internal/config"
+	"github.com/ireuven89/routewise/internal/repository"
+	"github.com/ireuven89/routewise/internal/service"
+	"github.com/ireuven89/routewise/services"
 	"github.com/joho/godotenv"
 )
 
@@ -41,8 +45,41 @@ func main() {
 	router.Use(sentrygin.New(sentrygin.Options{}))
 	router.Use(middleware.Cors())
 
+	//init repositories
+	projectRepo := repository.NewJobRepository(db)
+	fileRepo := repository.NewFileRepository(db)
+	otpRepo := repository.NewOTPRepository(db)
+	workerRepo := repository.NewWorkerRepository(db)
+	organizationUser := repository.NewUserRepository(db)
+	jobRepo := repository.NewJobRepository(db)
+	customerRepo := repository.NewCustomerRepository(db)
+
+	//initialize services
+	s3Service, err := services.NewS3Service()
+	authService := service.NewAuthService(workerRepo, otpRepo, organizationUser)
+	workerService := service.NewWorkerService(workerRepo)
+	jobService := service.NewJobService(jobRepo)
+	customerService := service.NewCustomerService(customerRepo)
+
+	// Initialize handlers
+	authHandler := handlers.NewAuthHandler(authService)
+	jobHandler := handlers.NewJobHandler(jobService)
+	customerHandler := handlers.NewCustomerHandler(customerService)
+	technicianHandler := handlers.NewWorkerHandler(workerService)
+	filesHandler := handlers.NewFileHandler(fileRepo, projectRepo, s3Service)
+	healthHandler := handlers.NewHealthHandler(db)
+
+	h := handlers.NewHandlers(
+		authHandler,
+		jobHandler,
+		customerHandler,
+		technicianHandler,
+		filesHandler,
+		healthHandler,
+	)
+
 	// Setup routes
-	api.SetupRoutes(router, db)
+	api.SetupRoutes(router, *h)
 
 	// Start server
 	port := os.Getenv("PORT")
