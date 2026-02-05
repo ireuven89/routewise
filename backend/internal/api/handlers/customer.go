@@ -1,25 +1,24 @@
 package handlers
 
 import (
-	"database/sql"
-	"fmt"
-	"github.com/getsentry/sentry-go"
-	"github.com/gin-gonic/gin"
-	"github.com/ireuven89/routewise/internal/models"
-	"github.com/ireuven89/routewise/internal/repository"
+	"errors"
 	"net/http"
 	"strconv"
+
+	"github.com/getsentry/sentry-go"
+	"github.com/gin-gonic/gin"
+	"github.com/ireuven89/routewise/internal/service"
 )
 
 type CustomerHandler struct {
-	customerRepo *repository.CustomerRepository
+	service service.CustomerService
 }
 
-func NewCustomerHandler(db *sql.DB) *CustomerHandler {
-	return &CustomerHandler{
-		customerRepo: repository.NewCustomerRepository(db),
-	}
+func NewCustomerHandler(svc service.CustomerService) *CustomerHandler {
+	return &CustomerHandler{service: svc}
 }
+
+// --- Request DTOs ---
 
 type CreateCustomerRequest struct {
 	Name      string   `json:"name" binding:"required"`
@@ -41,6 +40,8 @@ type UpdateCustomerRequest struct {
 	Notes     string   `json:"notes"`
 }
 
+// --- Handlers ---
+
 func (h *CustomerHandler) Create(c *gin.Context) {
 	organizationID := c.GetUint("organization_id")
 	organizationUserID := c.GetUint("organization_user_id")
@@ -48,14 +49,13 @@ func (h *CustomerHandler) Create(c *gin.Context) {
 	var req CreateCustomerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		sentry.CaptureException(err)
-		fmt.Println("failed parsing request", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	customer := &models.Customer{
+	customer, err := h.service.Create(service.CreateCustomerInput{
 		OrganizationID: organizationID,
-		CreatedBy:      &organizationUserID,
+		CreatedBy:      organizationUserID,
 		Name:           req.Name,
 		Email:          req.Email,
 		Phone:          req.Phone,
@@ -63,11 +63,9 @@ func (h *CustomerHandler) Create(c *gin.Context) {
 		Latitude:       req.Latitude,
 		Longitude:      req.Longitude,
 		Notes:          req.Notes,
-	}
-
-	if err := h.customerRepo.Create(customer); err != nil {
+	})
+	if err != nil {
 		sentry.CaptureException(err)
-		fmt.Println("failed creating customer", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create customer"})
 		return
 	}
@@ -77,12 +75,10 @@ func (h *CustomerHandler) Create(c *gin.Context) {
 
 func (h *CustomerHandler) GetAll(c *gin.Context) {
 	organizationID := c.GetUint("organization_id")
-	search := c.Query("search")
 
-	customers, err := h.customerRepo.FindAll(organizationID, search)
+	customers, err := h.service.GetAll(organizationID, c.Query("search"))
 	if err != nil {
 		sentry.CaptureException(err)
-		fmt.Println("failed fetching customer", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch customers"})
 		return
 	}
@@ -95,16 +91,12 @@ func (h *CustomerHandler) GetByID(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		sentry.CaptureException(err)
-		fmt.Println("failed fetching customer", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer ID"})
 		return
 	}
 
-	customer, err := h.customerRepo.FindByID(uint(id), organizationID)
+	customer, err := h.service.GetByID(uint(id), organizationID)
 	if err != nil {
-		sentry.CaptureException(err)
-		fmt.Println("failed fetching customer", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Customer not found"})
 		return
 	}
@@ -117,8 +109,6 @@ func (h *CustomerHandler) Update(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		sentry.CaptureException(err)
-		fmt.Println("failed updating customer", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer ID"})
 		return
 	}
@@ -126,38 +116,25 @@ func (h *CustomerHandler) Update(c *gin.Context) {
 	var req UpdateCustomerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		sentry.CaptureException(err)
-		fmt.Println("failed updating customer", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Fetch existing customer
-	customer, err := h.customerRepo.FindByID(uint(id), organizationID)
+	customer, err := h.service.Update(uint(id), organizationID, service.UpdateCustomerInput{
+		Name:      req.Name,
+		Email:     req.Email,
+		Phone:     req.Phone,
+		Address:   req.Address,
+		Latitude:  req.Latitude,
+		Longitude: req.Longitude,
+		Notes:     req.Notes,
+	})
 	if err != nil {
+		if errors.Is(err, service.ErrCustomerNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Customer not found"})
+			return
+		}
 		sentry.CaptureException(err)
-		fmt.Println("failed updating customer", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Customer not found"})
-		return
-	}
-
-	// Update fields
-	if req.Name != "" {
-		customer.Name = req.Name
-	}
-	customer.Email = req.Email
-	if req.Phone != "" {
-		customer.Phone = req.Phone
-	}
-	if req.Address != "" {
-		customer.Address = req.Address
-	}
-	customer.Latitude = req.Latitude
-	customer.Longitude = req.Longitude
-	customer.Notes = req.Notes
-
-	if err := h.customerRepo.Update(customer); err != nil {
-		sentry.CaptureException(err)
-		fmt.Println("failed updating customer", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update customer"})
 		return
 	}
@@ -170,15 +147,11 @@ func (h *CustomerHandler) Delete(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		sentry.CaptureException(err)
-		fmt.Println("failed deleting customer", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer ID"})
 		return
 	}
 
-	if err := h.customerRepo.Delete(uint(id), organizationID); err != nil {
-		sentry.CaptureException(err)
-		fmt.Println("failed deleting customer", err)
+	if err := h.service.Delete(uint(id), organizationID); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Customer not found"})
 		return
 	}

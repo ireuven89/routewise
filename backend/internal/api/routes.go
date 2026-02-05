@@ -1,117 +1,60 @@
 package api
 
 import (
-	"database/sql"
-	"log"
-	"time"
-
 	"github.com/gin-gonic/gin"
 	"github.com/ireuven89/routewise/internal/api/handlers"
 	"github.com/ireuven89/routewise/internal/api/middleware"
-	"github.com/ireuven89/routewise/internal/repository"
-	"github.com/ireuven89/routewise/internal/service"
-	"github.com/ireuven89/routewise/services"
 )
 
-func SetupRoutes(router *gin.Engine, db *sql.DB) {
+func SetupRoutes(router *gin.Engine, h handlers.Handlers) {
 	// Health check
-	router.GET("/health", func(c *gin.Context) {
-		err := db.Ping()
-		if err != nil {
-			c.JSON(503, gin.H{
-				"status": "unhealthy",
-				"error":  "database unreachable",
-			})
-			return
-		}
-
-		c.JSON(200, gin.H{
-			"status":    "ok",
-			"message":   "RouteWise API is running",
-			"database":  "connected",
-			"timestamp": time.Now(),
-		})
-	})
-
-	router.GET("/metrics", func(c *gin.Context) {
-		stats := db.Stats()
-		c.JSON(200, gin.H{
-			"open_connections": stats.OpenConnections,
-			"in_use":           stats.InUse,
-			"idle":             stats.Idle,
-			"wait_count":       stats.WaitCount,
-			"max_open":         stats.MaxOpenConnections,
-		})
-	})
-
-	//initialize repositories
-	projectRepo := repository.NewJobRepository(db)
-	fileRepo := repository.NewFileRepository(db)
-	otpRepo := repository.NewOTPRepository(db)
-	workerRepo := repository.NewWorkerRepository(db)
-	organizationUser := repository.NewUserRepository(db)
-	jobRepo := repository.NewJobRepository(db)
-
-	//initialize services
-	s3Service, err := services.NewS3Service()
-	authService := service.NewAuthService(workerRepo, otpRepo, organizationUser)
-	workerService := service.NewWorkerService(workerRepo)
-	jobService := service.NewJobService(jobRepo)
-
-	if err != nil {
-		log.Fatal("Failed to connect to S3:", err)
-	}
-
-	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(authService)
-	jobHandler := handlers.NewJobHandler(jobService)
-	customerHandler := handlers.NewCustomerHandler(db)
-	technicianHandler := handlers.NewWorkerHandler(workerService)
-	filesHandler := handlers.NewFileHandler(fileRepo, projectRepo, s3Service)
+	router.GET("/health", h.Health.Check) // Detailed (replaces /health + /metrics)
+	router.GET("/ready", h.Health.Ready)  // Kubernetes readiness probe
+	router.GET("/live", h.Health.Live)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
 		// Public auth routes
-		v1.POST("/register", authHandler.Register)
-		v1.POST("/login", authHandler.Login)
-		v1.POST("/workers/request-otp", authHandler.RequestWorkerOTP)
-		v1.POST("/worker/verify-otp", authHandler.VerifyWorkerOTP)
+		v1.POST("/register", h.Auth.Register)
+		v1.POST("/login", h.Auth.Login)
+		v1.POST("/workers/request-otp", h.Auth.RequestWorkerOTP)
+		v1.POST("/worker/verify-otp", h.Auth.VerifyWorkerOTP)
 
 		// Protected routes
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware())
 		{
-			protected.GET("/me", authHandler.GetProfile)
+			protected.GET("/me", h.Auth.GetProfile)
 
 			// Jobs
-			protected.POST("/jobs", jobHandler.Create)
-			protected.GET("/jobs", jobHandler.GetAll)
-			protected.GET("/jobs/:id", jobHandler.GetByID)
-			protected.PUT("/jobs/:id", jobHandler.Update)
-			protected.DELETE("/jobs/:id", jobHandler.Delete)
-			protected.PATCH("/jobs/:id/assign", jobHandler.AssignTechnician)
-			protected.PATCH("/jobs/:id/status", jobHandler.UpdateStatus)
+			protected.POST("/jobs", h.Job.Create)
+			protected.GET("/jobs", h.Job.GetAll)
+			protected.GET("/jobs/:id", h.Job.GetByID)
+			protected.PUT("/jobs/:id", h.Job.Update)
+			protected.DELETE("/jobs/:id", h.Job.Delete)
+			protected.PATCH("/jobs/:id/assign", h.Job.AssignTechnician)
+			protected.PATCH("/jobs/:id/status", h.Job.UpdateStatus)
 
 			// Customers
-			protected.POST("/customers", customerHandler.Create)
-			protected.GET("/customers", customerHandler.GetAll)
-			protected.GET("/customers/:id", customerHandler.GetByID)
-			protected.PUT("/customers/:id", customerHandler.Update)
-			protected.DELETE("/customers/:id", customerHandler.Delete)
+			protected.POST("/customers", h.Customer.Create)
+			protected.GET("/customers", h.Customer.GetAll)
+			protected.GET("/customers/:id", h.Customer.GetByID)
+			protected.PUT("/customers/:id", h.Customer.Update)
+			protected.DELETE("/customers/:id", h.Customer.Delete)
 
 			// Technicians
-			protected.POST("/workers", technicianHandler.Create)
-			protected.GET("/workers", technicianHandler.GetAll)
-			protected.GET("/workers/:id", technicianHandler.GetByID)
-			protected.PUT("/workers/:id", technicianHandler.Update)
-			protected.DELETE("/workers/:id", technicianHandler.Delete)
+			protected.POST("/workers", h.Technician.Create)
+			protected.GET("/workers", h.Technician.GetAll)
+			protected.GET("/workers/:id", h.Technician.GetByID)
+			protected.PUT("/workers/:id", h.Technician.Update)
+			protected.DELETE("/workers/:id", h.Technician.Delete)
 
 			//files
-			protected.POST("/projects/:id/files", filesHandler.Upload)
-			protected.GET("projects/:id/files", filesHandler.ListFiles)
-			protected.GET("/files/:id", filesHandler.GetFile)
-			protected.DELETE("/files/:id", filesHandler.DeleteFile)
+			protected.POST("/projects/:id/files", h.Files.Upload)
+			protected.GET("projects/:id/files", h.Files.ListFiles)
+			protected.GET("/files/:id", h.Files.GetFile)
+			protected.DELETE("/files/:id", h.Files.DeleteFile)
 		}
 	}
 }
