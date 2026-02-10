@@ -19,15 +19,20 @@ import (
 
 type JobRepository struct {
 	db           *sql.DB
-	customerRepo CustomerRepository
+	customerRepo *CustomerRepository
 }
 
-func NewJobRepository(db *sql.DB) *JobRepository {
-	return &JobRepository{db: db}
+func NewJobRepository(db *sql.DB, customerRepo *CustomerRepository) *JobRepository {
+	return &JobRepository{db: db,
+		customerRepo: customerRepo,
+	}
 }
 
 func (r *JobRepository) CreateServiceCall(ctx context.Context, organizationID uint, request *models.CreateServiceCallRequest) (*models.CreateServiceCallResponse, error) {
 	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("could not start transaction: %v", err)
+	}
 	defer tx.Rollback()
 
 	if err != nil {
