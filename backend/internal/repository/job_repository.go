@@ -31,14 +31,11 @@ func NewJobRepository(db *sql.DB, customerRepo *CustomerRepository) *JobReposito
 func (r *JobRepository) CreateServiceCall(ctx context.Context, organizationID uint, request *models.CreateServiceCallRequest) (*models.CreateServiceCallResponse, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
-		return nil, fmt.Errorf("could not start transaction: %v", err)
-	}
-	defer tx.Rollback()
-
-	if err != nil {
 		fmt.Printf("error starting transaction: %v\n", err)
 		return nil, fmt.Errorf("could not start transaction: %w", err)
 	}
+
+	defer tx.Rollback()
 
 	createdCustomer := false
 	customer, err := r.customerRepo.FindByPhoneTx(ctx, tx, organizationID, request.Customer.Phone)
