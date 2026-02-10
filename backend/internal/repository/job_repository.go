@@ -1,18 +1,129 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	"github.com/ireuven89/routewise/internal/models"
 	"time"
+
+	"github.com/ireuven89/routewise/internal/models"
 )
 
+/*type JobRepository interface {
+	CreateServiceCall(ctx context.Context, organizationID uint, request *models.CreateServiceCallRequest) (*models.CreateServiceCallResponse, error)
+	Create(ctx context.Context, job *models.Job) error
+	CreateTx(ctx context.Context, tx *sql.Tx, job *models.Job) (*uint, error)
+	FindById(ctx context.Context, id string) (*models.Job, error)
+	FindAll(ctx context.Context) ([]*models.Job, error)
+}*/
+
 type JobRepository struct {
-	db *sql.DB
+	db           *sql.DB
+	customerRepo *CustomerRepository
 }
 
-func NewJobRepository(db *sql.DB) *JobRepository {
-	return &JobRepository{db: db}
+func NewJobRepository(db *sql.DB, customerRepo *CustomerRepository) *JobRepository {
+	return &JobRepository{db: db,
+		customerRepo: customerRepo,
+	}
+}
+
+func (r *JobRepository) CreateServiceCall(ctx context.Context, organizationID uint, request *models.CreateServiceCallRequest) (*models.CreateServiceCallResponse, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		fmt.Printf("error starting transaction: %v\n", err)
+		return nil, fmt.Errorf("could not start transaction: %w", err)
+	}
+
+	defer tx.Rollback()
+
+	createdCustomer := false
+	customer, err := r.customerRepo.FindByPhoneTx(ctx, tx, organizationID, request.Customer.Phone)
+
+	if err != nil {
+		if err == CustomerNotFoundError {
+			customer = &models.Customer{
+				OrganizationID: organizationID,
+				Phone:          request.Customer.Phone,
+				Email:          request.Customer.Email,
+				Name:           request.Customer.Name,
+				Address:        request.Customer.Address,
+			}
+			err = r.customerRepo.CreateTx(ctx, tx, customer)
+			if err != nil {
+				return nil, fmt.Errorf("could not create customer: %w", err)
+			}
+			createdCustomer = true
+		} else {
+			return nil, fmt.Errorf("could not find customer: %w", err)
+		}
+	}
+
+	job := &models.Job{
+		OrganizationID: organizationID,
+		CustomerID:     customer.ID,
+		Title:          request.Job.Title,
+		Description:    request.Job.Description,
+		ScheduledAt:    request.Job.ScheduledDate,
+		Status:         models.JobStatus(request.Job.Status),
+	}
+
+	if request.TechnicianID != nil {
+		job.TechnicianID = request.TechnicianID
+	}
+
+	jobID, err := r.CreateTx(ctx, tx, job)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create job: %w", err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return &models.CreateServiceCallResponse{
+		CustomerID:      customer.ID,
+		JobID:           *jobID,
+		CustomerCreated: createdCustomer,
+		Message:         "Service call created successfully",
+	}, nil
+
+}
+
+func (r *JobRepository) CreateTx(ctx context.Context, tx *sql.Tx, job *models.Job) (*uint, error) {
+	query := `
+		INSERT INTO jobs (organization_id, created_by, customer_id, technician_id, title, description, status, scheduled_at, duration_minutes, price, metadata, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		RETURNING id
+	`
+
+	now := time.Now()
+	err := tx.QueryRowContext(ctx,
+		query,
+		job.OrganizationID,
+		job.CreatedBy,
+		job.CustomerID,
+		job.TechnicianID,
+		job.Title,
+		job.Description,
+		job.Status,
+		job.ScheduledAt,
+		job.DurationMinutes,
+		job.Price,
+		job.Metadata,
+		now,
+		now,
+	).Scan(&job.ID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	job.CreatedAt = now
+	job.UpdatedAt = now
+
+	return &job.ID, nil
 }
 
 func (r *JobRepository) Create(job *models.Job) error {

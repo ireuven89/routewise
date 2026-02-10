@@ -71,6 +71,9 @@ const he = {
         addCustomerSub: 'הוספת לקוח חדש',
         createA: 'יצירת',
 
+        newServiceCall: 'קריאת שירות חדשה',
+        newServiceCallSub: 'יצירת קריאת שירות משיחת טלפון נכנסת',
+
         // Worker statuses
         available: 'זמין',
         onsite: 'בשטח',
@@ -206,6 +209,41 @@ const he = {
         cancel: 'ביטול',
         updateJob: 'עדכון עבודה',
         createJobBtn: 'יצירת עבודה',
+    },
+
+    // ─── Service Call ─────────────────────────────────────────────────────────
+    serviceCall: {
+        title: 'קריאת שירות חדשה',
+        customerInfo: 'פרטי לקוח',
+        jobDetails: 'פרטי עבודה',
+        customerName: 'שם הלקוח *',
+        customerNamePlaceholder: 'יוהנן לוי',
+        phone: 'טלפון *',
+        phonePlaceholder: '050-123-4567',
+        email: 'דוא"ל *',
+        emailPlaceholder: 'customer@email.com',
+        address: 'כתובת',
+        addressPlaceholder: '123 רחוב הראשון, תל אביב',
+        jobTitle: 'כותרת העבודה *',
+        jobTitlePlaceholder: 'תיקון מיזוג אוויר',
+        description: 'תיאור',
+        descriptionPlaceholder: 'המכשיר לא מקרר כראוי...',
+        scheduledDate: 'תאריך ושעה מתוכננים *',
+        priority: 'עדיפות',
+        priorityLow: 'נמוכה',
+        priorityMedium: 'בינונית',
+        priorityHigh: 'גבוהה',
+        technician: 'טכנאי',
+        selectTechnician: 'בחירת טכנאי (אופציונלי)',
+        cancel: 'ביטול',
+        submit: 'יצירת קריאת שירות',
+        submitting: 'יוצרים...',
+        successTitle: 'קריאת שירות נוצרה!',
+        successMessage: 'עבודה מס\' {{jobId}} תוכננה',
+        customerNew: 'לקוח חדש נוצר',
+        customerExisting: 'שויך ללקוח קיים',
+        done: 'סיום',
+        error: 'נכשל ביצירת קריאת שירות. אנא נסו שנית.',
     },
 
     // ─── Footer ─────────────────────────────────────────────────────────────

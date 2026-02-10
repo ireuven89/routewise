@@ -1,7 +1,9 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ireuven89/routewise/internal/models"
@@ -21,6 +23,7 @@ var validJobStatuses = map[models.JobStatus]bool{
 }
 
 type JobService interface {
+	CreateServiceCall(ctx context.Context, organizationID uint, request *models.CreateServiceCallRequest) (*models.CreateServiceCallResponse, error)
 	Create(input CreateJobInput) (*models.Job, error)
 	GetAll(organizationID uint, filters map[string]interface{}, sortBy string) ([]*models.Job, error)
 	GetByID(id, organizationID uint) (*models.Job, error)
@@ -59,6 +62,18 @@ type UpdateJobInput struct {
 	Price           *float64
 	Status          string
 	Metadata        models.JSON
+}
+
+func (s *JobSvc) CreateServiceCall(ctx context.Context, organizationID uint, request *models.CreateServiceCallRequest) (*models.CreateServiceCallResponse, error) {
+
+	response, err := s.repo.CreateServiceCall(ctx, organizationID, request)
+
+	if err != nil {
+		fmt.Printf("CreateServiceCall error: %v\n", err)
+		return nil, fmt.Errorf("CreateServiceCall: %w", err)
+	}
+
+	return response, nil
 }
 
 func (s *JobSvc) Create(input CreateJobInput) (*models.Job, error) {

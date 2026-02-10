@@ -21,7 +21,7 @@ import (
 func main() {
 
 	// Load environment variables
-	if err := godotenv.Load(); err != nil {
+	if err := godotenv.Overload(); err != nil {
 		log.Println("No .env file found")
 	}
 
@@ -46,13 +46,12 @@ func main() {
 	router.Use(middleware.Cors())
 
 	//init repositories
-	projectRepo := repository.NewJobRepository(db)
 	fileRepo := repository.NewFileRepository(db)
 	otpRepo := repository.NewOTPRepository(db)
 	workerRepo := repository.NewWorkerRepository(db)
 	organizationUser := repository.NewUserRepository(db)
-	jobRepo := repository.NewJobRepository(db)
 	customerRepo := repository.NewCustomerRepository(db)
+	jobRepo := repository.NewJobRepository(db, customerRepo)
 
 	//initialize services
 	s3Service, err := services.NewS3Service()
@@ -66,7 +65,7 @@ func main() {
 	jobHandler := handlers.NewJobHandler(jobService)
 	customerHandler := handlers.NewCustomerHandler(customerService)
 	technicianHandler := handlers.NewWorkerHandler(workerService)
-	filesHandler := handlers.NewFileHandler(fileRepo, projectRepo, s3Service)
+	filesHandler := handlers.NewFileHandler(fileRepo, jobRepo, s3Service)
 	healthHandler := handlers.NewHealthHandler(db)
 
 	h := handlers.NewHandlers(
