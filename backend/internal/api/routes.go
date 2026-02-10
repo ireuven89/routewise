@@ -27,6 +27,9 @@ func SetupRoutes(router *gin.Engine, h handlers.Handlers) {
 		{
 			protected.GET("/me", h.Auth.GetProfile)
 
+			//service calls
+			protected.POST("service_calls", h.Job.CreateServiceCall)
+
 			// Jobs
 			protected.POST("/jobs", h.Job.Create)
 			protected.GET("/jobs", h.Job.GetAll)

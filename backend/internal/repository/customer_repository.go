@@ -1,12 +1,16 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ireuven89/routewise/internal/models"
 )
+
+var CustomerNotFoundError = errors.New("customer not found")
 
 type customerDB struct {
 	ID             uint      `sql:"id""`
@@ -29,6 +33,61 @@ type CustomerRepository struct {
 
 func NewCustomerRepository(db *sql.DB) *CustomerRepository {
 	return &CustomerRepository{db: db}
+}
+
+func (r *CustomerRepository) FindByPhoneTx(ctx context.Context, tx *sql.Tx, organizationID uint, phone string) (*models.Customer, error) {
+	q := `SELECT id, organization_id, name, email, phone, address 
+		  FROM customers
+		  WHERE phone = $1 AND organization_id = $2`
+
+	res := &models.Customer{}
+	err := tx.QueryRowContext(ctx, q, phone, organizationID).Scan(
+		&res.ID,
+		&res.OrganizationID,
+		&res.Name,
+		&res.Email,
+		&res.Phone,
+		&res.Address)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, CustomerNotFoundError
+		}
+
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (r *CustomerRepository) CreateTx(ctx context.Context, tx *sql.Tx, customer *models.Customer) error {
+	query := `
+		INSERT INTO customers (organization_id, created_by, name, email, phone, address, latitude, longitude, notes, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		RETURNING id
+	`
+
+	now := time.Now()
+	err := tx.QueryRowContext(ctx,
+		query,
+		customer.OrganizationID,
+		customer.CreatedBy,
+		customer.Name,
+		customer.Email,
+		customer.Phone,
+		customer.Address,
+		customer.Latitude,
+		customer.Longitude,
+		customer.Notes,
+		now,
+		now,
+	).Scan(&customer.ID)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *CustomerRepository) Create(customer *models.Customer) error {

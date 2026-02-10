@@ -78,4 +78,9 @@ export const workersAPI = {
     delete: (id) => apiClient.delete(`/api/v1/workers/${id}`),
 };
 
+// Service Calls API
+export const serviceCallsAPI = {
+    create: (data) => apiClient.post('/api/v1/service_calls', data),
+};
+
 export default apiClient;

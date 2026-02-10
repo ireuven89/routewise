@@ -53,6 +53,29 @@ type UpdateStatusRequest struct {
 
 // --- Handlers ---
 
+func (h *JobHandler) CreateServiceCall(c *gin.Context) {
+	organizationID := c.GetUint("organization_id")
+	organizationUser := c.GetUint("organization_user_id")
+
+	var req models.CreateServiceCallRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	req.Job.CreatedBy = organizationUser
+
+	response, err := h.service.CreateServiceCall(c.Request.Context(), organizationID, &req)
+
+	if err != nil {
+		sentry.CaptureException(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, response)
+}
+
 func (h *JobHandler) Create(c *gin.Context) {
 	organizationID := c.GetUint("organization_id")
 	organizationUserID := c.GetUint("organization_user_id")

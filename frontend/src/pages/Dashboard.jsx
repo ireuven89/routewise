@@ -11,12 +11,14 @@ import {
     FaHardHat,
     FaWrench,
     FaCheckCircle,
+    FaPhone,
 } from 'react-icons/fa';
 import Layout from '../components/Layout';
 import { StatCardSkeleton, CardSkeleton } from '../components/Skeleton';
 import { customersAPI, jobsAPI, workersAPI } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import ServiceCallModal from '../components/ServiceCallModal';
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 const Dashboard = () => {
@@ -48,8 +50,10 @@ const Dashboard = () => {
     });
     const [todayJobs, setTodayJobs] = useState([]);
     const [workers, setWorkers] = useState([]);
+    const [allWorkers, setAllWorkers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
+    const [showServiceCallModal, setShowServiceCallModal] = useState(false);
 
     const fetchDashboardData = useCallback(async () => {
         setLoading(true);
@@ -90,6 +94,7 @@ const Dashboard = () => {
                 totalCustomers: customersRes.data?.length || 0,
                 totalWorkers: allWorkers.length,
             });
+            setAllWorkers(allWorkers);
             setWorkers(allWorkers.slice(0, 7));
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
@@ -151,14 +156,23 @@ const Dashboard = () => {
                             {t('dashboard.welcome')} {organization?.name || ''}
                         </p>
                     </div>
-                    <Link
-                        to="/jobs"
-                        className="inline-flex items-center px-4 py-2 text-white text-sm font-semibold rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
-                        style={{ backgroundColor: '#ff6b35' }}
-                    >
-                        <FaPlus className="mr-2 w-3.5 h-3.5" />
-                        {industryT.newJob}
-                    </Link>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setShowServiceCallModal(true)}
+                            className="inline-flex items-center px-4 py-2 text-white text-sm font-semibold rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
+                            style={{ backgroundColor: '#ff6b35' }}
+                        >
+                            <FaPhone className="mr-2 w-3.5 h-3.5" />
+                            {t('dashboard.newServiceCall')}
+                        </button>
+                        <Link
+                            to="/jobs"
+                            className="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-all duration-200"
+                        >
+                            <FaPlus className="mr-2 w-3.5 h-3.5" />
+                            {industryT.newJob}
+                        </Link>
+                    </div>
                 </div>
 
                 {/* ── Stat Cards ── conditional per industry ────────────────── */}
@@ -262,6 +276,13 @@ const Dashboard = () => {
                                     <h2 className="text-sm font-semibold text-gray-900">{t('dashboard.quickActions')}</h2>
                                 </div>
                                 <div className="p-4 space-y-3">
+                                    <QuickActionButton
+                                        onClick={() => setShowServiceCallModal(true)}
+                                        icon={FaPhone}
+                                        label={t('dashboard.newServiceCall')}
+                                        sub={t('dashboard.newServiceCallSub')}
+                                        color="orange"
+                                    />
                                     <QuickAction
                                         to="/jobs"
                                         icon={FaBriefcase}
@@ -288,6 +309,14 @@ const Dashboard = () => {
                         )}
                     </div>
                 </div>
+                {/* ── Service Call Modal ─────────────────────────────── */}
+                {showServiceCallModal && (
+                    <ServiceCallModal
+                        workers={allWorkers}
+                        onSuccess={() => { setShowServiceCallModal(false); fetchDashboardData(); }}
+                        onClose={() => setShowServiceCallModal(false)}
+                    />
+                )}
             </div>
         </Layout>
     );
@@ -460,12 +489,15 @@ const StatCard = ({ title, value, sub, link, icon: Icon, color }) => {
 };
 
 // ─── QuickAction ──────────────────────────────────────────────────────────────
+const quickActionThemes = {
+    blue:    { icon: 'text-blue-600',    bg: 'bg-blue-50',    hover: 'hover:bg-blue-100' },
+    emerald: { icon: 'text-emerald-600', bg: 'bg-emerald-50', hover: 'hover:bg-emerald-100' },
+    violet:  { icon: 'text-violet-600',  bg: 'bg-violet-50',  hover: 'hover:bg-violet-100' },
+    orange:  { icon: 'text-orange-600',  bg: 'bg-orange-50',  hover: 'hover:bg-orange-100' },
+};
+
 const QuickAction = ({ to, icon: Icon, label, sub, color }) => {
-    const theme = {
-        blue:    { icon: 'text-blue-600',    bg: 'bg-blue-50',    hover: 'hover:bg-blue-100' },
-        emerald: { icon: 'text-emerald-600', bg: 'bg-emerald-50', hover: 'hover:bg-emerald-100' },
-        violet:  { icon: 'text-violet-600',  bg: 'bg-violet-50',  hover: 'hover:bg-violet-100' },
-    }[color];
+    const theme = quickActionThemes[color];
 
     return (
         <Link
@@ -480,6 +512,25 @@ const QuickAction = ({ to, icon: Icon, label, sub, color }) => {
                 <p className="text-xs text-gray-500 truncate">{sub}</p>
             </div>
         </Link>
+    );
+};
+
+const QuickActionButton = ({ onClick, icon: Icon, label, sub, color }) => {
+    const theme = quickActionThemes[color];
+
+    return (
+        <button
+            onClick={onClick}
+            className={`flex items-center gap-3 p-3 rounded-lg w-full text-left ${theme.bg} ${theme.hover} transition-colors duration-150`}
+        >
+            <div className="flex-shrink-0">
+                <Icon className={`w-4 h-4 ${theme.icon}`} />
+            </div>
+            <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-900">{label}</p>
+                <p className="text-xs text-gray-500 truncate">{sub}</p>
+            </div>
+        </button>
     );
 };
 
