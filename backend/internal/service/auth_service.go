@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"os"
 	"strings"
 	"time"
 
@@ -13,8 +12,6 @@ import (
 	"github.com/ireuven89/routewise/internal/models"
 	"github.com/ireuven89/routewise/internal/repository"
 	"github.com/ireuven89/routewise/pkg/utils"
-	"github.com/twilio/twilio-go"
-	api "github.com/twilio/twilio-go/rest/api/v2010"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -32,15 +29,15 @@ type AuthServiceImpl struct {
 	otpRepo              *repository.OTPRepository
 	workerRepo           *repository.WorkerRepository
 	organizationUserRepo *repository.OrganizationUserRepository
-	twilioClient         *twilio.RestClient
+	notificationService  NotificationService
 }
 
-func NewAuthService(workerRepository *repository.WorkerRepository, otpRepository *repository.OTPRepository, userRepository *repository.OrganizationUserRepository) AuthService {
+func NewAuthService(workerRepository *repository.WorkerRepository, otpRepository *repository.OTPRepository, userRepository *repository.OrganizationUserRepository, notificationService NotificationService) AuthService {
 	return &AuthServiceImpl{
 		workerRepo:           workerRepository,
 		organizationUserRepo: userRepository,
 		otpRepo:              otpRepository,
-		twilioClient:         twilio.NewRestClientWithParams(twilio.ClientParams{Username: os.Getenv("TWILIO_SID"), Password: os.Getenv("TWILIO_AUTH_TOKEN")}),
+		notificationService:  notificationService,
 	}
 }
 
@@ -232,14 +229,8 @@ func (s *AuthServiceImpl) generateOTP() string {
 }
 
 func (s *AuthServiceImpl) sendSMS(phone, code string) error {
-	params := &api.CreateMessageParams{}
-	params.SetTo(phone)
-	params.SetFrom(os.Getenv("TWILIO_PHONE_NUMBER"))
-	params.SetBody(fmt.Sprintf("Your RouteWise code is: %s", code))
-
-	_, err := s.twilioClient.Api.CreateMessage(params)
-
-	return err
+	message := fmt.Sprintf("Your RouteWise code is: %s", code)
+	return s.notificationService.SendSMS(phone, message)
 }
 
 func (s *AuthServiceImpl) generateUuid() (string, error) {

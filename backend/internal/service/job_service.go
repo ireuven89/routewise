@@ -34,11 +34,15 @@ type JobService interface {
 }
 
 type JobSvc struct {
-	repo *repository.JobRepository
+	repo               *repository.JobRepository
+	paymentLinkService PaymentLinkService
 }
 
-func NewJobService(repo *repository.JobRepository) *JobSvc {
-	return &JobSvc{repo: repo}
+func NewJobService(repo *repository.JobRepository, paymentLinkService PaymentLinkService) *JobSvc {
+	return &JobSvc{
+		repo:               repo,
+		paymentLinkService: paymentLinkService,
+	}
 }
 
 type CreateJobInput struct {
@@ -157,9 +161,40 @@ func (s *JobSvc) UpdateStatus(id, organizationID uint, status string) error {
 	if !validJobStatuses[jobStatus] {
 		return ErrInvalidStatus
 	}
-	return s.repo.UpdateStatus(id, organizationID, jobStatus)
+
+	// Update status in database
+	err := s.repo.UpdateStatus(id, organizationID, jobStatus)
+	if err != nil {
+		return err
+	}
+
+	// If marking as completed, check if auto-send is enabled
+	if jobStatus == models.StatusCompleted && s.paymentLinkService != nil {
+		go s.maybeAutoSendPaymentLink(organizationID, id)
+	}
+
+	return nil
 }
 
 func (s *JobSvc) Delete(id, organizationID uint) error {
 	return s.repo.Delete(id, organizationID)
+}
+
+// maybeAutoSendPaymentLink checks if auto-send is enabled and sends payment link
+func (s *JobSvc) maybeAutoSendPaymentLink(organizationID, jobID uint) {
+	if s.paymentLinkService == nil {
+		return
+	}
+
+	settings, err := s.paymentLinkService.GetOrganizationSettings(organizationID)
+	if err != nil || !settings.AutoSendOnCompletion {
+		return // Auto-send not enabled
+	}
+
+	// Send payment link (errors are logged but don't block)
+	_, err = s.paymentLinkService.SendPaymentLinkForJob(organizationID, jobID, 0) // userID=0 for auto-send
+	if err != nil {
+		// TODO: Log error to monitoring/Sentry
+		fmt.Printf("Auto-send payment link failed for job %d: %v\n", jobID, err)
+	}
 }

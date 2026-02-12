@@ -83,4 +83,16 @@ export const serviceCallsAPI = {
     create: (data) => apiClient.post('/api/v1/service_calls', data),
 };
 
+// Payment API
+export const paymentAPI = {
+    sendPaymentLink: (jobId) =>
+        apiClient.post(`/api/v1/jobs/${jobId}/payment-link`),
+    getPaymentNotifications: (jobId) =>
+        apiClient.get(`/api/v1/jobs/${jobId}/payment-notifications`),
+    getPaymentSettings: () =>
+        apiClient.get('/api/v1/payment-settings'),
+    updatePaymentSettings: (data) =>
+        apiClient.put('/api/v1/payment-settings', data),
+};
+
 export default apiClient;

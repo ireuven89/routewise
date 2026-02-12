@@ -4,6 +4,7 @@ import Layout from '../components/Layout';
 import { format } from 'date-fns';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import PaymentLinkButton from '../components/PaymentLinkButton';
 
 const Jobs = () => {
     const { t } = useLanguage();
@@ -165,6 +166,7 @@ const Jobs = () => {
                                     onDelete={() => handleDeleteJob(job.id)}
                                     onAssignTechnician={handleAssignTechnician}
                                     onUpdateStatus={handleUpdateStatus}
+                                    onPaymentLinkSent={loadData}
                                 />
                             ))}
                         </ul>
@@ -197,7 +199,7 @@ const Jobs = () => {
 };
 
 // ─── JobItem ──────────────────────────────────────────────────────────────────
-const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpdateStatus }) => {
+const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpdateStatus, onPaymentLinkSent }) => {
     const { t } = useLanguage();
 
     const statusColors = {
@@ -277,6 +279,9 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
                                 {t('jobs.complete')}
                             </button>
                         )}
+
+                        {/* Payment Link Button */}
+                        <PaymentLinkButton job={job} onSuccess={onPaymentLinkSent} />
 
                         {/* Edit/Delete */}
                         <button onClick={onEdit} className="text-sm text-blue-600 hover:text-blue-800">

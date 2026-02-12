@@ -52,18 +52,22 @@ func main() {
 	organizationUser := repository.NewUserRepository(db)
 	customerRepo := repository.NewCustomerRepository(db)
 	jobRepo := repository.NewJobRepository(db, customerRepo)
+	paymentNotifRepo := repository.NewPaymentNotificationRepository(db)
+	paymentSettingsRepo := repository.NewPaymentSettingsRepository(db)
 
 	//initialize services
 	s3Service, err := services.NewS3Service()
-	authService := service.NewAuthService(workerRepo, otpRepo, organizationUser)
 
 	// Initialize Google Maps geocoding service
 	googleMapsAPIKey := os.Getenv("GOOGLE_MAPS_API_KEY")
 	geocodingService := service.NewGeocodingService(googleMapsAPIKey)
 
+	notificationService := service.NewNotificationService()
+	authService := service.NewAuthService(workerRepo, otpRepo, organizationUser, notificationService)
 	workerService := service.NewWorkerService(workerRepo, geocodingService)
-	jobService := service.NewJobService(jobRepo)
 	customerService := service.NewCustomerService(customerRepo, geocodingService)
+	paymentLinkService := service.NewPaymentLinkService(paymentNotifRepo, paymentSettingsRepo, jobRepo, customerRepo, notificationService)
+	jobService := service.NewJobService(jobRepo, paymentLinkService)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -72,6 +76,7 @@ func main() {
 	technicianHandler := handlers.NewWorkerHandler(workerService)
 	filesHandler := handlers.NewFileHandler(fileRepo, jobRepo, s3Service)
 	healthHandler := handlers.NewHealthHandler(db)
+	paymentLinkHandler := handlers.NewPaymentLinkHandler(paymentLinkService)
 
 	// Initialize geocoding handler with frontend API key
 	googleMapsFrontendAPIKey := os.Getenv("GOOGLE_MAPS_FRONTEND_API_KEY")
@@ -85,6 +90,7 @@ func main() {
 		filesHandler,
 		healthHandler,
 		geocodingHandler,
+		paymentLinkHandler,
 	)
 
 	// Setup routes
