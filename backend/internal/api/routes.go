@@ -27,6 +27,9 @@ func SetupRoutes(router *gin.Engine, h handlers.Handlers) {
 		{
 			protected.GET("/me", h.Auth.GetProfile)
 
+			// Google Maps configuration
+			protected.GET("/config/google-maps", h.Geocoding.GetFrontendConfig)
+
 			//service calls
 			protected.POST("service_calls", h.Job.CreateServiceCall)
 

@@ -43,11 +43,16 @@ func (r *JobRepository) CreateServiceCall(ctx context.Context, organizationID ui
 	if err != nil {
 		if err == CustomerNotFoundError {
 			customer = &models.Customer{
-				OrganizationID: organizationID,
-				Phone:          request.Customer.Phone,
-				Email:          request.Customer.Email,
-				Name:           request.Customer.Name,
-				Address:        request.Customer.Address,
+				OrganizationID:    organizationID,
+				Phone:             request.Customer.Phone,
+				Email:             request.Customer.Email,
+				Name:              request.Customer.Name,
+				Address:           request.Customer.Address,
+				Latitude:          request.Customer.Latitude,
+				Longitude:         request.Customer.Longitude,
+				GooglePlaceID:     request.Customer.GooglePlaceID,
+				FormattedAddress:  request.Customer.FormattedAddress,
+				AddressComponents: request.Customer.AddressComponents,
 			}
 			err = r.customerRepo.CreateTx(ctx, tx, customer)
 			if err != nil {

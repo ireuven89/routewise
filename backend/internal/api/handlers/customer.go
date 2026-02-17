@@ -21,23 +21,29 @@ func NewCustomerHandler(svc service.CustomerService) *CustomerHandler {
 // --- Request DTOs ---
 
 type CreateCustomerRequest struct {
-	Name      string   `json:"name" binding:"required"`
-	Email     string   `json:"email"`
-	Phone     string   `json:"phone" binding:"required"`
-	Address   string   `json:"address" binding:"required"`
-	Latitude  *float64 `json:"latitude"`
-	Longitude *float64 `json:"longitude"`
-	Notes     string   `json:"notes"`
+	Name              string                 `json:"name" binding:"required"`
+	Email             string                 `json:"email"`
+	Phone             string                 `json:"phone" binding:"required"`
+	Address           string                 `json:"address" binding:"required"`
+	Latitude          *float64               `json:"latitude"`
+	Longitude         *float64               `json:"longitude"`
+	GooglePlaceID     string                 `json:"google_place_id"`
+	FormattedAddress  string                 `json:"formatted_address"`
+	AddressComponents map[string]interface{} `json:"address_components"`
+	Notes             string                 `json:"notes"`
 }
 
 type UpdateCustomerRequest struct {
-	Name      string   `json:"name"`
-	Email     string   `json:"email"`
-	Phone     string   `json:"phone"`
-	Address   string   `json:"address"`
-	Latitude  *float64 `json:"latitude"`
-	Longitude *float64 `json:"longitude"`
-	Notes     string   `json:"notes"`
+	Name              string                 `json:"name"`
+	Email             string                 `json:"email"`
+	Phone             string                 `json:"phone"`
+	Address           string                 `json:"address"`
+	Latitude          *float64               `json:"latitude"`
+	Longitude         *float64               `json:"longitude"`
+	GooglePlaceID     string                 `json:"google_place_id"`
+	FormattedAddress  string                 `json:"formatted_address"`
+	AddressComponents map[string]interface{} `json:"address_components"`
+	Notes             string                 `json:"notes"`
 }
 
 // --- Handlers ---
@@ -54,15 +60,18 @@ func (h *CustomerHandler) Create(c *gin.Context) {
 	}
 
 	customer, err := h.service.Create(service.CreateCustomerInput{
-		OrganizationID: organizationID,
-		CreatedBy:      organizationUserID,
-		Name:           req.Name,
-		Email:          req.Email,
-		Phone:          req.Phone,
-		Address:        req.Address,
-		Latitude:       req.Latitude,
-		Longitude:      req.Longitude,
-		Notes:          req.Notes,
+		OrganizationID:    organizationID,
+		CreatedBy:         organizationUserID,
+		Name:              req.Name,
+		Email:             req.Email,
+		Phone:             req.Phone,
+		Address:           req.Address,
+		Latitude:          req.Latitude,
+		Longitude:         req.Longitude,
+		GooglePlaceID:     req.GooglePlaceID,
+		FormattedAddress:  req.FormattedAddress,
+		AddressComponents: req.AddressComponents,
+		Notes:             req.Notes,
 	})
 	if err != nil {
 		sentry.CaptureException(err)
@@ -121,13 +130,16 @@ func (h *CustomerHandler) Update(c *gin.Context) {
 	}
 
 	customer, err := h.service.Update(uint(id), organizationID, service.UpdateCustomerInput{
-		Name:      req.Name,
-		Email:     req.Email,
-		Phone:     req.Phone,
-		Address:   req.Address,
-		Latitude:  req.Latitude,
-		Longitude: req.Longitude,
-		Notes:     req.Notes,
+		Name:              req.Name,
+		Email:             req.Email,
+		Phone:             req.Phone,
+		Address:           req.Address,
+		Latitude:          req.Latitude,
+		Longitude:         req.Longitude,
+		GooglePlaceID:     req.GooglePlaceID,
+		FormattedAddress:  req.FormattedAddress,
+		AddressComponents: req.AddressComponents,
+		Notes:             req.Notes,
 	})
 	if err != nil {
 		if errors.Is(err, service.ErrCustomerNotFound) {

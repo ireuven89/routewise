@@ -20,17 +20,29 @@ func NewWorkerHandler(service service.WorkerService) *WorkerHandler {
 }
 
 type CreateWorkerRequest struct {
-	Name     string `json:"name" binding:"required"`
-	Email    string `json:"email"`
-	Phone    string `json:"phone" binding:"required"`
-	IsActive bool   `json:"is_active"`
+	Name                  string                 `json:"name" binding:"required"`
+	Email                 string                 `json:"email"`
+	Phone                 string                 `json:"phone" binding:"required"`
+	IsActive              bool                   `json:"is_active"`
+	HomeAddress           string                 `json:"home_address"`
+	HomeLatitude          *float64               `json:"home_latitude"`
+	HomeLongitude         *float64               `json:"home_longitude"`
+	HomeGooglePlaceID     string                 `json:"home_google_place_id"`
+	HomeFormattedAddress  string                 `json:"home_formatted_address"`
+	HomeAddressComponents map[string]interface{} `json:"home_address_components"`
 }
 
 type UpdateWorkerRequest struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Phone    string `json:"phone"`
-	IsActive *bool  `json:"is_active"`
+	Name                  string                 `json:"name"`
+	Email                 string                 `json:"email"`
+	Phone                 string                 `json:"phone"`
+	IsActive              *bool                  `json:"is_active"`
+	HomeAddress           string                 `json:"home_address"`
+	HomeLatitude          *float64               `json:"home_latitude"`
+	HomeLongitude         *float64               `json:"home_longitude"`
+	HomeGooglePlaceID     string                 `json:"home_google_place_id"`
+	HomeFormattedAddress  string                 `json:"home_formatted_address"`
+	HomeAddressComponents map[string]interface{} `json:"home_address_components"`
 }
 
 func (h *WorkerHandler) Create(c *gin.Context) {
@@ -47,11 +59,17 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	worker, err := h.workerService.Create(ctx, service.CreateWorkerInput{
-		OrganizationID: organizationID,
-		CreatedBy:      organizationUserID,
-		Name:           req.Name,
-		Email:          req.Email,
-		Phone:          req.Phone,
+		OrganizationID:        organizationID,
+		CreatedBy:             organizationUserID,
+		Name:                  req.Name,
+		Email:                 req.Email,
+		Phone:                 req.Phone,
+		HomeAddress:           req.HomeAddress,
+		HomeLatitude:          req.HomeLatitude,
+		HomeLongitude:         req.HomeLongitude,
+		HomeGooglePlaceID:     req.HomeGooglePlaceID,
+		HomeFormattedAddress:  req.HomeFormattedAddress,
+		HomeAddressComponents: req.HomeAddressComponents,
 	})
 
 	if err != nil {
@@ -120,10 +138,16 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	worker, err := h.workerService.Update(ctx, uint(id), organizationID, service.UpdateWorkerInput{
-		Name:     req.Name,
-		Email:    req.Email,
-		Phone:    req.Phone,
-		IsActive: req.IsActive,
+		Name:                  req.Name,
+		Email:                 req.Email,
+		Phone:                 req.Phone,
+		IsActive:              req.IsActive,
+		HomeAddress:           req.HomeAddress,
+		HomeLatitude:          req.HomeLatitude,
+		HomeLongitude:         req.HomeLongitude,
+		HomeGooglePlaceID:     req.HomeGooglePlaceID,
+		HomeFormattedAddress:  req.HomeFormattedAddress,
+		HomeAddressComponents: req.HomeAddressComponents,
 	})
 
 	if err != nil {

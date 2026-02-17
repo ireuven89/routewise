@@ -9,10 +9,15 @@ type CreateServiceCallRequest struct {
 }
 
 type ServiceCallCustomer struct {
-	Phone   string `json:"phone" binding:"required"`
-	Name    string `json:"name" binding:"required"`
-	Email   string `json:"email" binding:"required,email"`
-	Address string `json:"address"`
+	Phone             string                 `json:"phone" binding:"required"`
+	Name              string                 `json:"name" binding:"required"`
+	Email             string                 `json:"email"`
+	Address           string                 `json:"address"`
+	Latitude          *float64               `json:"latitude"`
+	Longitude         *float64               `json:"longitude"`
+	GooglePlaceID     string                 `json:"google_place_id"`
+	FormattedAddress  string                 `json:"formatted_address"`
+	AddressComponents map[string]interface{} `json:"address_components"`
 }
 
 type ServiceCallJob struct {

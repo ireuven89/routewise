@@ -21,6 +21,7 @@
     "start": "react-scripts start",
     "build": "DISABLE_ESLINT_PLUGIN=true react-scripts build",
     "test": "react-scripts test",
+    "debug": "node --inspect src/App.js",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

@@ -172,6 +172,9 @@ const en = {
         add: 'Add',
         worker: 'Worker',
         fullNumber: 'Full number:',
+        homeAddress: 'Home Address',
+        homeAddressPlaceholder: 'Enter worker home address',
+        homeAddressHelp: 'Used for route optimization',
     },
 
     // ─── Jobs ───────────────────────────────────────────────────────────────
