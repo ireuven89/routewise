@@ -1,4 +1,4 @@
--- Migration 0011: Add payment notifications system
+-- Migration 0013: Add payment notifications system
 -- Creates tables for tracking payment links sent to customers via SMS (Bit payment app)
 
 -- Table: payment_notifications
