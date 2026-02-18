@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FaCheckCircle, FaPhone } from 'react-icons/fa';
+import axios from 'axios';
 import { serviceCallsAPI } from '../api/client';
 import { useLanguage } from '../context/LanguageContext';
+import GooglePlacesAutocomplete from './GooglePlacesAutocomplete';
+import { loadGoogleMapsScript } from '../utils/googleMaps';
 
 const ServiceCallModal = ({ workers, onSuccess, onClose }) => {
     const { t } = useLanguage();
@@ -11,6 +14,11 @@ const ServiceCallModal = ({ workers, onSuccess, onClose }) => {
         phone: '',
         email: '',
         address: '',
+        latitude: null,
+        longitude: null,
+        google_place_id: '',
+        formatted_address: '',
+        address_components: null,
         title: '',
         description: '',
         scheduledDate: '',
@@ -20,6 +28,8 @@ const ServiceCallModal = ({ workers, onSuccess, onClose }) => {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [successData, setSuccessData] = useState(null);
+    const [googleMapsKey, setGoogleMapsKey] = useState('');
+    const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -29,10 +39,41 @@ const ServiceCallModal = ({ workers, onSuccess, onClose }) => {
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [onClose]);
 
+    useEffect(() => {
+        const loadGoogleMaps = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:8080'}/api/v1/config/google-maps`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (response.data.enabled && response.data.api_key) {
+                    setGoogleMapsKey(response.data.api_key);
+                    await loadGoogleMapsScript(response.data.api_key);
+                    setGoogleMapsLoaded(true);
+                }
+            } catch {
+                setGoogleMapsLoaded(false);
+            }
+        };
+        loadGoogleMaps();
+    }, []);
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
+
+    const handleAddressSelect = useCallback((addressData) => {
+        setFormData((prev) => ({
+            ...prev,
+            address: addressData.address || addressData.formattedAddress || '',
+            latitude: addressData.latitude || null,
+            longitude: addressData.longitude || null,
+            google_place_id: addressData.placeId || '',
+            formatted_address: addressData.formattedAddress || '',
+            address_components: addressData.components || null,
+        }));
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -46,6 +87,11 @@ const ServiceCallModal = ({ workers, onSuccess, onClose }) => {
                     phone: formData.phone,
                     email: formData.email,
                     address: formData.address,
+                    latitude: formData.latitude,
+                    longitude: formData.longitude,
+                    google_place_id: formData.google_place_id,
+                    formatted_address: formData.formatted_address,
+                    address_components: formData.address_components,
                 },
                 job: {
                     title: formData.title,
@@ -177,7 +223,6 @@ const ServiceCallModal = ({ workers, onSuccess, onClose }) => {
                                     name="email"
                                     value={formData.email}
                                     onChange={handleChange}
-                                    required
                                     placeholder={t('serviceCall.emailPlaceholder')}
                                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -186,14 +231,22 @@ const ServiceCallModal = ({ workers, onSuccess, onClose }) => {
                                 <label className="block text-sm font-medium text-gray-700">
                                     {t('serviceCall.address')}
                                 </label>
-                                <input
-                                    type="text"
-                                    name="address"
-                                    value={formData.address}
-                                    onChange={handleChange}
-                                    placeholder={t('serviceCall.addressPlaceholder')}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                />
+                                {googleMapsLoaded && googleMapsKey ? (
+                                    <GooglePlacesAutocomplete
+                                        onChange={handleAddressSelect}
+                                        placeholder={t('serviceCall.addressPlaceholder')}
+                                        apiKey={googleMapsKey}
+                                    />
+                                ) : (
+                                    <input
+                                        type="text"
+                                        name="address"
+                                        value={formData.address}
+                                        onChange={handleChange}
+                                        placeholder={t('serviceCall.addressPlaceholder')}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                )}
                             </div>
                         </div>
                     </div>

@@ -56,9 +56,14 @@ func main() {
 	//initialize services
 	s3Service, err := services.NewS3Service()
 	authService := service.NewAuthService(workerRepo, otpRepo, organizationUser)
-	workerService := service.NewWorkerService(workerRepo)
+
+	// Initialize Google Maps geocoding service
+	googleMapsAPIKey := os.Getenv("GOOGLE_MAPS_API_KEY")
+	geocodingService := service.NewGeocodingService(googleMapsAPIKey)
+
+	workerService := service.NewWorkerService(workerRepo, geocodingService)
 	jobService := service.NewJobService(jobRepo)
-	customerService := service.NewCustomerService(customerRepo)
+	customerService := service.NewCustomerService(customerRepo, geocodingService)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -68,6 +73,10 @@ func main() {
 	filesHandler := handlers.NewFileHandler(fileRepo, jobRepo, s3Service)
 	healthHandler := handlers.NewHealthHandler(db)
 
+	// Initialize geocoding handler with frontend API key
+	googleMapsFrontendAPIKey := os.Getenv("GOOGLE_MAPS_FRONTEND_API_KEY")
+	geocodingHandler := handlers.NewGeocodingHandler(googleMapsFrontendAPIKey)
+
 	h := handlers.NewHandlers(
 		authHandler,
 		jobHandler,
@@ -75,6 +84,7 @@ func main() {
 		technicianHandler,
 		filesHandler,
 		healthHandler,
+		geocodingHandler,
 	)
 
 	// Setup routes

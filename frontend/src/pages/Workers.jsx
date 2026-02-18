@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { workersAPI } from '../api/client';
 import Layout from '../components/Layout';
 import { formatPhone } from "../utils/phone";
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import GooglePlacesAutocomplete from '../components/GooglePlacesAutocomplete';
+import { loadGoogleMapsScript } from '../utils/googleMaps';
+import axios from 'axios';
 
 const COUNTRY_CODES = [
     { code: '+1', country: 'US/Canada', flag: '🇺🇸' },
@@ -163,6 +166,11 @@ const Workers = () => {
                                                 📞 {worker.phone}
                                                 {worker.email && ` • ✉️ ${worker.email}`}
                                             </p>
+                                            {worker.home_address && (
+                                                <p className="text-sm text-gray-600 mt-1">
+                                                    🏠 {worker.home_address}
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="flex gap-3">
                                             <button
@@ -216,7 +224,38 @@ const WorkerModal = ({ worker, onSave, onClose }) => {
         phoneNumber: existingNumber,
         role: worker?.role || '',
         is_active: worker?.is_active !== undefined ? worker.is_active : true,
+        home_address: worker?.home_address || '',
+        home_latitude: worker?.home_latitude || null,
+        home_longitude: worker?.home_longitude || null,
+        home_google_place_id: worker?.home_google_place_id || '',
+        home_formatted_address: worker?.home_formatted_address || '',
+        home_address_components: worker?.home_address_components || null,
     });
+    const [googleMapsKey, setGoogleMapsKey] = useState('');
+    const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
+
+    // Load Google Maps API key and script
+    useEffect(() => {
+        const loadGoogleMaps = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:8080'}/api/v1/config/google-maps`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                if (response.data.enabled && response.data.api_key) {
+                    setGoogleMapsKey(response.data.api_key);
+                    await loadGoogleMapsScript(response.data.api_key);
+                    setGoogleMapsLoaded(true);
+                }
+            } catch (error) {
+                console.error('Failed to load Google Maps:', error);
+                setGoogleMapsLoaded(false);
+            }
+        };
+
+        loadGoogleMaps();
+    }, []);
 
     const handleChange = (e) => {
         const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -226,6 +265,18 @@ const WorkerModal = ({ worker, onSave, onClose }) => {
         });
     };
 
+    const handleHomeAddressSelect = useCallback((addressData) => {
+        setFormData(prev => ({
+            ...prev,
+            home_address: addressData.address || addressData.formattedAddress || '',
+            home_latitude: addressData.latitude || null,
+            home_longitude: addressData.longitude || null,
+            home_google_place_id: addressData.placeId || '',
+            home_formatted_address: addressData.formattedAddress || '',
+            home_address_components: addressData.components || null,
+        }));
+    }, []);
+
     const handleSubmit = (e) => {
         e.preventDefault();
         const payload = {
@@ -234,6 +285,12 @@ const WorkerModal = ({ worker, onSave, onClose }) => {
             phone: formatPhone(formData.countryCode, formData.phoneNumber),
             role: formData.role,
             is_active: formData.is_active,
+            home_address: formData.home_address,
+            home_latitude: formData.home_latitude,
+            home_longitude: formData.home_longitude,
+            home_google_place_id: formData.home_google_place_id,
+            home_formatted_address: formData.home_formatted_address,
+            home_address_components: formData.home_address_components,
         };
         onSave(payload);
     };
@@ -324,6 +381,30 @@ const WorkerModal = ({ worker, onSave, onClose }) => {
                             <option value="Supervisor">{t('workers.roleSupervisor')}</option>
                             <option value="Technician">{t('workers.roleTechnician')}</option>
                         </select>
+                    </div>
+
+                    {/* Home Address */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                            {t('workers.homeAddress')}
+                        </label>
+                        <p className="text-xs text-gray-500 mb-1">{t('workers.homeAddressHelp')}</p>
+                        {googleMapsLoaded && googleMapsKey ? (
+                            <GooglePlacesAutocomplete
+                                onChange={handleHomeAddressSelect}
+                                placeholder={t('workers.homeAddressPlaceholder')}
+                                apiKey={googleMapsKey}
+                            />
+                        ) : (
+                            <input
+                                type="text"
+                                name="home_address"
+                                value={formData.home_address}
+                                onChange={handleChange}
+                                placeholder={t('workers.homeAddressPlaceholder')}
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2"
+                            />
+                        )}
                     </div>
 
                     {/* Active Toggle */}

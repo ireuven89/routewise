@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"github.com/ireuven89/routewise/internal/models"
 	"time"
@@ -17,13 +18,28 @@ func NewWorkerRepository(db *sql.DB) *WorkerRepository {
 
 func (r *WorkerRepository) Create(worker *models.Worker) error {
 	query := `
-		INSERT INTO workers (organization_id, created_by, name, email, phone, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO workers (
+			organization_id, created_by, name, email, phone, is_active,
+			home_address, home_latitude, home_longitude,
+			home_google_place_id, home_formatted_address,
+			home_address_components, home_geocoded_at,
+			created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id
 	`
 
+	var homeAddressComponentsJSON []byte
+	var err error
+	if worker.HomeAddressComponents != nil {
+		homeAddressComponentsJSON, err = json.Marshal(worker.HomeAddressComponents)
+		if err != nil {
+			return fmt.Errorf("failed to marshal home address components: %w", err)
+		}
+	}
+
 	now := time.Now()
-	err := r.db.QueryRow(
+	err = r.db.QueryRow(
 		query,
 		worker.OrganizationID,
 		worker.CreatedBy,
@@ -31,6 +47,13 @@ func (r *WorkerRepository) Create(worker *models.Worker) error {
 		worker.Email,
 		worker.Phone,
 		worker.IsActive,
+		worker.HomeAddress,
+		worker.HomeLatitude,
+		worker.HomeLongitude,
+		worker.HomeGooglePlaceID,
+		worker.HomeFormattedAddress,
+		homeAddressComponentsJSON,
+		worker.HomeGeocodedAt,
 		now,
 		now,
 	).Scan(&worker.ID)
@@ -46,7 +69,10 @@ func (r *WorkerRepository) Create(worker *models.Worker) error {
 
 func (r *WorkerRepository) FindByID(id uint, organizationID uint) (*models.Worker, error) {
 	query := `
-		SELECT id, organization_id, created_by, name, email, phone, is_active, created_at, updated_at
+		SELECT id, organization_id, created_by, name, email, phone, is_active,
+		       home_address, home_latitude, home_longitude, home_google_place_id, home_formatted_address,
+		       home_address_components, home_geocoded_at,
+		       created_at, updated_at
 		FROM workers
 		WHERE id = $1 AND organization_id = $2
 	`
@@ -54,6 +80,10 @@ func (r *WorkerRepository) FindByID(id uint, organizationID uint) (*models.Worke
 	worker := &models.Worker{}
 	var email sql.NullString
 	var createdBy sql.NullInt64
+	var homeAddress, homeGooglePlaceID, homeFormattedAddress sql.NullString
+	var homeLatitude, homeLongitude sql.NullFloat64
+	var homeAddressComponentsJSON []byte
+	var homeGeocodedAt sql.NullTime
 
 	err := r.db.QueryRow(query, id, organizationID).Scan(
 		&worker.ID,
@@ -63,6 +93,13 @@ func (r *WorkerRepository) FindByID(id uint, organizationID uint) (*models.Worke
 		&email,
 		&worker.Phone,
 		&worker.IsActive,
+		&homeAddress,
+		&homeLatitude,
+		&homeLongitude,
+		&homeGooglePlaceID,
+		&homeFormattedAddress,
+		&homeAddressComponentsJSON,
+		&homeGeocodedAt,
 		&worker.CreatedAt,
 		&worker.UpdatedAt,
 	)
@@ -80,6 +117,31 @@ func (r *WorkerRepository) FindByID(id uint, organizationID uint) (*models.Worke
 	}
 	if email.Valid {
 		worker.Email = email.String
+	}
+	if homeAddress.Valid {
+		worker.HomeAddress = homeAddress.String
+	}
+	if homeLatitude.Valid {
+		lat := homeLatitude.Float64
+		worker.HomeLatitude = &lat
+	}
+	if homeLongitude.Valid {
+		lng := homeLongitude.Float64
+		worker.HomeLongitude = &lng
+	}
+	if homeGooglePlaceID.Valid {
+		worker.HomeGooglePlaceID = homeGooglePlaceID.String
+	}
+	if homeFormattedAddress.Valid {
+		worker.HomeFormattedAddress = homeFormattedAddress.String
+	}
+	if len(homeAddressComponentsJSON) > 0 {
+		if err := json.Unmarshal(homeAddressComponentsJSON, &worker.HomeAddressComponents); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal home address components: %w", err)
+		}
+	}
+	if homeGeocodedAt.Valid {
+		worker.HomeGeocodedAt = &homeGeocodedAt.Time
 	}
 
 	return worker, nil
@@ -124,7 +186,10 @@ func (r *WorkerRepository) FindByPhoneAndCompanyCode(phone, companyCode string) 
 
 func (r *WorkerRepository) FindAll(organizationID uint, activeOnly bool) ([]*models.Worker, error) {
 	query := `
-		SELECT id, organization_id, created_by, name, email, phone, is_active, created_at, updated_at
+		SELECT id, organization_id, created_by, name, email, phone, is_active,
+		       home_address, home_latitude, home_longitude, home_google_place_id, home_formatted_address,
+		       home_address_components, home_geocoded_at,
+		       created_at, updated_at
 		FROM workers
 		WHERE organization_id = $1
 	`
@@ -149,6 +214,10 @@ func (r *WorkerRepository) FindAll(organizationID uint, activeOnly bool) ([]*mod
 		worker := &models.Worker{}
 		var email sql.NullString
 		var createdBy sql.NullInt64
+		var homeAddress, homeGooglePlaceID, homeFormattedAddress sql.NullString
+		var homeLatitude, homeLongitude sql.NullFloat64
+		var homeAddressComponentsJSON []byte
+		var homeGeocodedAt sql.NullTime
 
 		err := rows.Scan(
 			&worker.ID,
@@ -158,6 +227,13 @@ func (r *WorkerRepository) FindAll(organizationID uint, activeOnly bool) ([]*mod
 			&email,
 			&worker.Phone,
 			&worker.IsActive,
+			&homeAddress,
+			&homeLatitude,
+			&homeLongitude,
+			&homeGooglePlaceID,
+			&homeFormattedAddress,
+			&homeAddressComponentsJSON,
+			&homeGeocodedAt,
 			&worker.CreatedAt,
 			&worker.UpdatedAt,
 		)
@@ -173,6 +249,31 @@ func (r *WorkerRepository) FindAll(organizationID uint, activeOnly bool) ([]*mod
 		if email.Valid {
 			worker.Email = email.String
 		}
+		if homeAddress.Valid {
+			worker.HomeAddress = homeAddress.String
+		}
+		if homeLatitude.Valid {
+			lat := homeLatitude.Float64
+			worker.HomeLatitude = &lat
+		}
+		if homeLongitude.Valid {
+			lng := homeLongitude.Float64
+			worker.HomeLongitude = &lng
+		}
+		if homeGooglePlaceID.Valid {
+			worker.HomeGooglePlaceID = homeGooglePlaceID.String
+		}
+		if homeFormattedAddress.Valid {
+			worker.HomeFormattedAddress = homeFormattedAddress.String
+		}
+		if len(homeAddressComponentsJSON) > 0 {
+			if err := json.Unmarshal(homeAddressComponentsJSON, &worker.HomeAddressComponents); err != nil {
+				fmt.Printf("failed unmarshaling home address components: %v", err)
+			}
+		}
+		if homeGeocodedAt.Valid {
+			worker.HomeGeocodedAt = &homeGeocodedAt.Time
+		}
 
 		workers = append(workers, worker)
 	}
@@ -183,9 +284,23 @@ func (r *WorkerRepository) FindAll(organizationID uint, activeOnly bool) ([]*mod
 func (r *WorkerRepository) Update(worker *models.Worker) error {
 	query := `
 		UPDATE workers
-		SET name = $1, email = $2, phone = $3, is_active = $4, updated_at = $5
-		WHERE id = $6 AND organization_id = $7
+		SET name = $1, email = $2, phone = $3, is_active = $4,
+		    home_address = $5, home_latitude = $6, home_longitude = $7,
+		    home_google_place_id = $8, home_formatted_address = $9,
+		    home_address_components = $10, home_geocoded_at = $11,
+		    updated_at = $12
+		WHERE id = $13 AND organization_id = $14
 	`
+
+	// Marshal home address components to JSON
+	var homeAddressComponentsJSON []byte
+	var err error
+	if worker.HomeAddressComponents != nil {
+		homeAddressComponentsJSON, err = json.Marshal(worker.HomeAddressComponents)
+		if err != nil {
+			return fmt.Errorf("failed to marshal home address components: %w", err)
+		}
+	}
 
 	result, err := r.db.Exec(
 		query,
@@ -193,6 +308,13 @@ func (r *WorkerRepository) Update(worker *models.Worker) error {
 		worker.Email,
 		worker.Phone,
 		worker.IsActive,
+		worker.HomeAddress,
+		worker.HomeLatitude,
+		worker.HomeLongitude,
+		worker.HomeGooglePlaceID,
+		worker.HomeFormattedAddress,
+		homeAddressComponentsJSON,
+		worker.HomeGeocodedAt,
 		time.Now(),
 		worker.ID,
 		worker.OrganizationID,

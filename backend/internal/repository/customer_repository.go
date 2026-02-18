@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -62,13 +63,26 @@ func (r *CustomerRepository) FindByPhoneTx(ctx context.Context, tx *sql.Tx, orga
 
 func (r *CustomerRepository) CreateTx(ctx context.Context, tx *sql.Tx, customer *models.Customer) error {
 	query := `
-		INSERT INTO customers (organization_id, created_by, name, email, phone, address, latitude, longitude, notes, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO customers (organization_id, created_by, name, email, phone, address, latitude, longitude,
+		                       google_place_id, formatted_address, address_components, geocoded_at,
+		                       notes, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id
 	`
 
 	now := time.Now()
-	err := tx.QueryRowContext(ctx,
+
+	// Marshal address components to JSON
+	var addressComponentsJSON []byte
+	var err error
+	if customer.AddressComponents != nil {
+		addressComponentsJSON, err = json.Marshal(customer.AddressComponents)
+		if err != nil {
+			return fmt.Errorf("failed to marshal address components: %w", err)
+		}
+	}
+
+	err = tx.QueryRowContext(ctx,
 		query,
 		customer.OrganizationID,
 		customer.CreatedBy,
@@ -78,6 +92,10 @@ func (r *CustomerRepository) CreateTx(ctx context.Context, tx *sql.Tx, customer 
 		customer.Address,
 		customer.Latitude,
 		customer.Longitude,
+		customer.GooglePlaceID,
+		customer.FormattedAddress,
+		addressComponentsJSON,
+		customer.GeocodedAt,
 		customer.Notes,
 		now,
 		now,
@@ -92,13 +110,26 @@ func (r *CustomerRepository) CreateTx(ctx context.Context, tx *sql.Tx, customer 
 
 func (r *CustomerRepository) Create(customer *models.Customer) error {
 	query := `
-		INSERT INTO customers (organization_id, created_by, name, email, phone, address, latitude, longitude, notes, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO customers (organization_id, created_by, name, email, phone, address, latitude, longitude,
+		                       google_place_id, formatted_address, address_components, geocoded_at,
+		                       notes, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id
 	`
 
 	now := time.Now()
-	err := r.db.QueryRow(
+
+	// Marshal address components to JSON
+	var addressComponentsJSON []byte
+	var err error
+	if customer.AddressComponents != nil {
+		addressComponentsJSON, err = json.Marshal(customer.AddressComponents)
+		if err != nil {
+			return fmt.Errorf("failed to marshal address components: %w", err)
+		}
+	}
+
+	err = r.db.QueryRow(
 		query,
 		customer.OrganizationID,
 		customer.CreatedBy,
@@ -108,6 +139,10 @@ func (r *CustomerRepository) Create(customer *models.Customer) error {
 		customer.Address,
 		customer.Latitude,
 		customer.Longitude,
+		customer.GooglePlaceID,
+		customer.FormattedAddress,
+		addressComponentsJSON,
+		customer.GeocodedAt,
 		customer.Notes,
 		now,
 		now,
@@ -124,7 +159,9 @@ func (r *CustomerRepository) Create(customer *models.Customer) error {
 
 func (r *CustomerRepository) FindByID(id uint, organizationID uint) (*models.Customer, error) {
 	query := `
-		SELECT id, organization_id, created_by, name, email, phone, address, latitude, longitude, notes, created_at, updated_at
+		SELECT id, organization_id, created_by, name, email, phone, address, latitude, longitude,
+		       google_place_id, formatted_address, address_components, geocoded_at,
+		       notes, created_at, updated_at
 		FROM customers
 		WHERE id = $1 AND organization_id = $2
 	`
@@ -132,6 +169,9 @@ func (r *CustomerRepository) FindByID(id uint, organizationID uint) (*models.Cus
 	customer := &models.Customer{}
 	var email, latitude, longitude sql.NullString
 	var createdBy sql.NullInt64
+	var googlePlaceID, formattedAddress sql.NullString
+	var addressComponentsJSON []byte
+	var geocodedAt sql.NullTime
 
 	err := r.db.QueryRow(query, id, organizationID).Scan(
 		&customer.ID,
@@ -143,6 +183,10 @@ func (r *CustomerRepository) FindByID(id uint, organizationID uint) (*models.Cus
 		&customer.Address,
 		&latitude,
 		&longitude,
+		&googlePlaceID,
+		&formattedAddress,
+		&addressComponentsJSON,
+		&geocodedAt,
 		&customer.Notes,
 		&customer.CreatedAt,
 		&customer.UpdatedAt,
@@ -171,13 +215,29 @@ func (r *CustomerRepository) FindByID(id uint, organizationID uint) (*models.Cus
 		lon := parseFloat(longitude.String)
 		customer.Longitude = &lon
 	}
+	if googlePlaceID.Valid {
+		customer.GooglePlaceID = googlePlaceID.String
+	}
+	if formattedAddress.Valid {
+		customer.FormattedAddress = formattedAddress.String
+	}
+	if len(addressComponentsJSON) > 0 {
+		if err := json.Unmarshal(addressComponentsJSON, &customer.AddressComponents); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal address components: %w", err)
+		}
+	}
+	if geocodedAt.Valid {
+		customer.GeocodedAt = &geocodedAt.Time
+	}
 
 	return customer, nil
 }
 
 func (r *CustomerRepository) FindAll(organizationID uint, search string) ([]*models.Customer, error) {
 	query := `
-		SELECT id, organization_id, created_by, name, email, phone, address, latitude, longitude, notes, created_at, updated_at
+		SELECT id, organization_id, created_by, name, email, phone, address, latitude, longitude,
+		       google_place_id, formatted_address, address_components, geocoded_at,
+		       notes, created_at, updated_at
 		FROM customers
 		WHERE organization_id = $1
 	`
@@ -205,6 +265,9 @@ func (r *CustomerRepository) FindAll(organizationID uint, search string) ([]*mod
 		var email, notes sql.NullString
 		var latitude, longitude sql.NullFloat64
 		var createdBy sql.NullInt64
+		var googlePlaceID, formattedAddress sql.NullString
+		var addressComponentsJSON []byte
+		var geocodedAt sql.NullTime
 
 		err := rows.Scan(
 			&customer.ID,
@@ -216,6 +279,10 @@ func (r *CustomerRepository) FindAll(organizationID uint, search string) ([]*mod
 			&customer.Address,
 			&latitude,
 			&longitude,
+			&googlePlaceID,
+			&formattedAddress,
+			&addressComponentsJSON,
+			&geocodedAt,
 			&notes,
 			&customer.CreatedAt,
 			&customer.UpdatedAt,
@@ -238,13 +305,26 @@ func (r *CustomerRepository) FindAll(organizationID uint, search string) ([]*mod
 			lat := latitude.Float64
 			customer.Latitude = &lat
 		}
-
 		if longitude.Valid {
 			lon := longitude.Float64
 			customer.Longitude = &lon
 		}
 		if notes.Valid {
 			customer.Notes = notes.String
+		}
+		if googlePlaceID.Valid {
+			customer.GooglePlaceID = googlePlaceID.String
+		}
+		if formattedAddress.Valid {
+			customer.FormattedAddress = formattedAddress.String
+		}
+		if len(addressComponentsJSON) > 0 {
+			if err := json.Unmarshal(addressComponentsJSON, &customer.AddressComponents); err != nil {
+				fmt.Printf("failed unmarshaling address components: %v", err)
+			}
+		}
+		if geocodedAt.Valid {
+			customer.GeocodedAt = &geocodedAt.Time
 		}
 
 		customers = append(customers, customer)
@@ -275,9 +355,21 @@ func (r *CustomerRepository) Update(customer *models.Customer) error {
 	query := `
 		UPDATE customers
 		SET name = $1, email = $2, phone = $3, address = $4,
-		    latitude = $5, longitude = $6, notes = $7, updated_at = $8
-		WHERE id = $9 AND organization_id = $10
+		    latitude = $5, longitude = $6,
+		    google_place_id = $7, formatted_address = $8, address_components = $9, geocoded_at = $10,
+		    notes = $11, updated_at = $12
+		WHERE id = $13 AND organization_id = $14
 	`
+
+	// Marshal address components to JSON
+	var addressComponentsJSON []byte
+	var err error
+	if customer.AddressComponents != nil {
+		addressComponentsJSON, err = json.Marshal(customer.AddressComponents)
+		if err != nil {
+			return fmt.Errorf("failed to marshal address components: %w", err)
+		}
+	}
 
 	result, err := r.db.Exec(
 		query,
@@ -287,6 +379,10 @@ func (r *CustomerRepository) Update(customer *models.Customer) error {
 		customer.Address,
 		customer.Latitude,
 		customer.Longitude,
+		customer.GooglePlaceID,
+		customer.FormattedAddress,
+		addressComponentsJSON,
+		customer.GeocodedAt,
 		customer.Notes,
 		time.Now(),
 		customer.ID,

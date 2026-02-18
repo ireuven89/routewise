@@ -2,6 +2,9 @@ import {useState, useEffect, useCallback} from 'react';
 import { customersAPI } from '../api/client';
 import Layout from '../components/Layout';
 import { useLanguage } from '../context/LanguageContext';
+import GooglePlacesAutocomplete from '../components/GooglePlacesAutocomplete';
+import { loadGoogleMapsScript } from '../utils/googleMaps';
+import axios from 'axios';
 
 const Customers = () => {
     const { t } = useLanguage();
@@ -170,7 +173,40 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
         phone: customer?.phone || '',
         address: customer?.address || '',
         notes: customer?.notes || '',
+        latitude: customer?.latitude || null,
+        longitude: customer?.longitude || null,
+        google_place_id: customer?.google_place_id || '',
+        formatted_address: customer?.formatted_address || '',
+        address_components: customer?.address_components || null,
     });
+    const [googleMapsKey, setGoogleMapsKey] = useState('');
+    const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
+
+    // Load Google Maps API key and script
+    useEffect(() => {
+        const loadGoogleMaps = async () => {
+            try {
+                // Fetch API key from backend
+                const token = localStorage.getItem('token');
+                const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:8080'}/api/v1/config/google-maps`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                if (response.data.enabled && response.data.api_key) {
+                    setGoogleMapsKey(response.data.api_key);
+                    // Load Google Maps script
+                    await loadGoogleMapsScript(response.data.api_key);
+                    setGoogleMapsLoaded(true);
+                }
+            } catch (error) {
+                console.error('Failed to load Google Maps:', error);
+                // Fall back to plain text input if Google Maps fails to load
+                setGoogleMapsLoaded(false);
+            }
+        };
+
+        loadGoogleMaps();
+    }, []);
 
     const handleChange = (e) => {
         setFormData({
@@ -179,8 +215,25 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
         });
     };
 
+    const handleAddressSelect = useCallback((addressData) => {
+        console.log('🔄 handleAddressSelect called with:', addressData);
+        setFormData(prev => ({
+            ...prev,
+            address: addressData.address || addressData.formattedAddress || '',
+            latitude: addressData.latitude || null,
+            longitude: addressData.longitude || null,
+            google_place_id: addressData.placeId || '',
+            formatted_address: addressData.formattedAddress || '',
+            address_components: addressData.components || null,
+        }));
+    }, []);
+
     const handleSubmit = (e) => {
         e.preventDefault();
+        console.log('📤 Submitting customer data:', formData);
+        console.log('📍 Address field:', formData.address);
+        console.log('🗺️ Coordinates:', { lat: formData.latitude, lng: formData.longitude });
+        console.log('🔑 Place ID:', formData.google_place_id);
         onSave(formData);
     };
 
@@ -231,15 +284,24 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700">{t('customers.address')}</label>
-                        <input
-                            type="text"
-                            name="address"
-                            value={formData.address}
-                            onChange={handleChange}
-                            required
-                            placeholder={t('customers.addressPlaceholder')}
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500"
-                        />
+                        {googleMapsLoaded && googleMapsKey ? (
+                            <GooglePlacesAutocomplete
+                                onChange={handleAddressSelect}
+                                placeholder={t('customers.addressPlaceholder')}
+                                required
+                                apiKey={googleMapsKey}
+                            />
+                        ) : (
+                            <input
+                                type="text"
+                                name="address"
+                                value={formData.address}
+                                onChange={handleChange}
+                                required
+                                placeholder={t('customers.addressPlaceholder')}
+                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500"
+                            />
+                        )}
                     </div>
 
                     <div>
