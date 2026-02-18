@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Jobs from "./pages/Jobs";
 import Customers from "./pages/Customers";
 import Workers from "./pages/Workers";
+import PaymentSettings from "./pages/PaymentSettings";
 import './rtl.css';
 import {LanguageProvider} from "./context/LanguageContext";
 
@@ -50,6 +51,14 @@ function App() {
                         element={
                             <PrivateRoute>
                                 <Workers />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/payment-settings"
+                        element={
+                            <PrivateRoute>
+                                <PaymentSettings />
                             </PrivateRoute>
                         }
                     />

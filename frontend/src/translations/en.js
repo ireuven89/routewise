@@ -260,6 +260,46 @@ const en = {
         completed: 'Completed',
         cancelled: 'Cancelled',
     },
+
+    // ─── Payments ───────────────────────────────────────────────────────────
+    payments: {
+        sendLink: 'Send Payment Link',
+        sending: 'Sending...',
+        linkSent: 'Payment link sent successfully!',
+        linkFailed: 'Failed to send payment link',
+        paymentStatus: 'Payment Status',
+        pending: 'Pending',
+        sent: 'Link Sent',
+        paid: 'Paid',
+        cancelled: 'Cancelled',
+    },
+
+    // ─── Payment Settings ───────────────────────────────────────────────────
+    paymentSettings: {
+        title: 'Payment Settings',
+        loading: 'Loading settings...',
+        save: 'Save Settings',
+        saving: 'Saving...',
+        saveSuccess: 'Payment settings saved successfully!',
+        saveFailed: 'Failed to save payment settings',
+        enableBit: 'Enable Bit Payments',
+        enableBitDesc: 'Allow customers to pay via Bit (Israeli P2P payment app)',
+        bitPhone: 'Bit Phone Number',
+        bitPhoneDesc: 'Phone number with country code (e.g., +972501234567)',
+        bitBusinessName: 'Business Name (Optional)',
+        bitBusinessNamePlaceholder: 'Your Company Name',
+        autoSend: 'Auto-send on Job Completion',
+        autoSendDesc: 'Automatically send payment link when a job is marked as completed',
+        smsTemplates: 'SMS Templates',
+        smsTemplatesDesc: 'Customize the message sent to customers. Use variables to personalize the message.',
+        hebrewTemplate: 'Hebrew Template',
+        englishTemplate: 'English Template',
+        availableVariables: 'Available Variables:',
+        varCustomerName: 'Customer name',
+        varJobTitle: 'Job title',
+        varAmount: 'Payment amount',
+        varLink: 'Payment link',
+    },
 };
 
 export default en;

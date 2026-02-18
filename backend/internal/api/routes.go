@@ -42,6 +42,12 @@ func SetupRoutes(router *gin.Engine, h handlers.Handlers) {
 			protected.PATCH("/jobs/:id/assign", h.Job.AssignTechnician)
 			protected.PATCH("/jobs/:id/status", h.Job.UpdateStatus)
 
+			// Payment links
+			protected.POST("/jobs/:id/payment-link", h.PaymentLink.SendPaymentLink)
+			protected.GET("/jobs/:id/payment-notifications", h.PaymentLink.GetPaymentNotifications)
+			protected.GET("/payment-settings", h.PaymentLink.GetPaymentSettings)
+			protected.PUT("/payment-settings", h.PaymentLink.UpdatePaymentSettings)
+
 			// Customers
 			protected.POST("/customers", h.Customer.Create)
 			protected.GET("/customers", h.Customer.GetAll)

@@ -261,6 +261,46 @@ const he = {
         completed: 'הושלם',
         cancelled: 'בוטל',
     },
+
+    // ─── Payments ───────────────────────────────────────────────────────────
+    payments: {
+        sendLink: 'שלח קישור לתשלום',
+        sending: 'שולח...',
+        linkSent: 'קישור לתשלום נשלח בהצלחה!',
+        linkFailed: 'שליחת קישור לתשלום נכשלה',
+        paymentStatus: 'סטטוס תשלום',
+        pending: 'ממתין',
+        sent: 'קישור נשלח',
+        paid: 'שולם',
+        cancelled: 'בוטל',
+    },
+
+    // ─── Payment Settings ───────────────────────────────────────────────────
+    paymentSettings: {
+        title: 'הגדרות תשלומים',
+        loading: 'טוען הגדרות...',
+        save: 'שמירת הגדרות',
+        saving: 'שומר...',
+        saveSuccess: 'הגדרות התשלום נשמרו בהצלחה!',
+        saveFailed: 'שמירת הגדרות התשלום נכשלה',
+        enableBit: 'הפעלת תשלומי Bit',
+        enableBitDesc: 'אפשר ללקוחות לשלם דרך Bit (אפליקציית תשלומים ישראלית)',
+        bitPhone: 'מספר טלפון Bit',
+        bitPhoneDesc: 'מספר טלפון עם קידומת בינלאומית (לדוגמה: +972501234567)',
+        bitBusinessName: 'שם העסק (אופציונלי)',
+        bitBusinessNamePlaceholder: 'שם החברה שלכם',
+        autoSend: 'שליחה אוטומטית בסיום עבודה',
+        autoSendDesc: 'שלח קישור תשלום אוטומטית כאשר עבודה מסומנת כהושלמה',
+        smsTemplates: 'תבניות SMS',
+        smsTemplatesDesc: 'התאימו אישית את ההודעה שנשלחת ללקוחות. השתמשו במשתנים להתאמה אישית.',
+        hebrewTemplate: 'תבנית עברית',
+        englishTemplate: 'תבנית אנגלית',
+        availableVariables: 'משתנים זמינים:',
+        varCustomerName: 'שם הלקוח',
+        varJobTitle: 'כותרת העבודה',
+        varAmount: 'סכום לתשלום',
+        varLink: 'קישור לתשלום',
+    },
 };
 
 export default he;
