@@ -19,9 +19,6 @@ import { customersAPI, jobsAPI, workersAPI } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import ServiceCallModal from '../components/ServiceCallModal';
-import JobModal from '../components/JobModal';
-import CustomerModal from '../components/CustomerModal';
-import WorkerModal from '../components/WorkerModal';
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 const Dashboard = () => {
@@ -54,13 +51,9 @@ const Dashboard = () => {
     const [todayJobs, setTodayJobs] = useState([]);
     const [workers, setWorkers] = useState([]);
     const [allWorkers, setAllWorkers] = useState([]);
-    const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
     const [showServiceCallModal, setShowServiceCallModal] = useState(false);
-    const [showJobModal, setShowJobModal] = useState(false);
-    const [showCustomerModal, setShowCustomerModal] = useState(false);
-    const [showWorkerModal, setShowWorkerModal] = useState(false);
 
     const fetchDashboardData = useCallback(async () => {
         setLoading(true);
@@ -103,7 +96,6 @@ const Dashboard = () => {
             });
             setAllWorkers(allWorkers);
             setWorkers(allWorkers.slice(0, 7));
-            setCustomers(customersRes.data || []);
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
         } finally {
@@ -121,36 +113,6 @@ const Dashboard = () => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         });
-    };
-
-    const handleCreateJob = async (jobData) => {
-        try {
-            await jobsAPI.create(jobData);
-            setShowJobModal(false);
-            fetchDashboardData();
-        } catch (error) {
-            console.error('Failed to create job:', error);
-        }
-    };
-
-    const handleCreateCustomer = async (customerData) => {
-        try {
-            await customersAPI.create(customerData);
-            setShowCustomerModal(false);
-            fetchDashboardData();
-        } catch (error) {
-            console.error('Failed to create customer:', error);
-        }
-    };
-
-    const handleCreateWorker = async (workerData) => {
-        try {
-            await workersAPI.create(workerData);
-            setShowWorkerModal(false);
-            fetchDashboardData();
-        } catch (error) {
-            console.error('Failed to create worker:', error);
-        }
     };
 
     return (
@@ -321,22 +283,22 @@ const Dashboard = () => {
                                         sub={t('dashboard.newServiceCallSub')}
                                         color="orange"
                                     />
-                                    <QuickActionButton
-                                        onClick={() => setShowJobModal(true)}
+                                    <QuickAction
+                                        to="/jobs"
                                         icon={FaBriefcase}
                                         label={industryT.newJob}
-                                        sub={`${t('dashboard.createA')} ${industryT.jobSingle.toLowerCase()}`}
+                                        sub={`${isConstruction ? t('dashboard.createA') : t('dashboard.createA')} ${industryT.jobSingle.toLowerCase()}`}
                                         color="blue"
                                     />
-                                    <QuickActionButton
-                                        onClick={() => setShowCustomerModal(true)}
+                                    <QuickAction
+                                        to="/customers"
                                         icon={FaUsers}
                                         label={t('dashboard.addCustomer')}
                                         sub={t('dashboard.addCustomerSub')}
                                         color="emerald"
                                     />
-                                    <QuickActionButton
-                                        onClick={() => setShowWorkerModal(true)}
+                                    <QuickAction
+                                        to="/technicians"
                                         icon={industryT.icon}
                                         label={industryT.addWorker}
                                         sub={industryT.registerWorker}
@@ -353,26 +315,6 @@ const Dashboard = () => {
                         workers={allWorkers}
                         onSuccess={() => { setShowServiceCallModal(false); fetchDashboardData(); }}
                         onClose={() => setShowServiceCallModal(false)}
-                    />
-                )}
-                {showJobModal && (
-                    <JobModal
-                        customers={customers}
-                        technicians={allWorkers}
-                        onSave={handleCreateJob}
-                        onClose={() => setShowJobModal(false)}
-                    />
-                )}
-                {showCustomerModal && (
-                    <CustomerModal
-                        onSave={handleCreateCustomer}
-                        onClose={() => setShowCustomerModal(false)}
-                    />
-                )}
-                {showWorkerModal && (
-                    <WorkerModal
-                        onSave={handleCreateWorker}
-                        onClose={() => setShowWorkerModal(false)}
                     />
                 )}
             </div>
@@ -554,6 +496,24 @@ const quickActionThemes = {
     orange:  { icon: 'text-orange-600',  bg: 'bg-orange-50',  hover: 'hover:bg-orange-100' },
 };
 
+const QuickAction = ({ to, icon: Icon, label, sub, color }) => {
+    const theme = quickActionThemes[color];
+
+    return (
+        <Link
+            to={to}
+            className={`flex items-center gap-3 p-3 rounded-lg ${theme.bg} ${theme.hover} transition-colors duration-150`}
+        >
+            <div className="flex-shrink-0">
+                <Icon className={`w-4 h-4 ${theme.icon}`} />
+            </div>
+            <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-900">{label}</p>
+                <p className="text-xs text-gray-500 truncate">{sub}</p>
+            </div>
+        </Link>
+    );
+};
 
 const QuickActionButton = ({ onClick, icon: Icon, label, sub, color }) => {
     const theme = quickActionThemes[color];
