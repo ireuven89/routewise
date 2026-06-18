@@ -83,4 +83,21 @@ export const serviceCallsAPI = {
     create: (data) => apiClient.post('/api/v1/service_calls', data),
 };
 
+// Public provider discovery API (no auth required)
+export const providersAPI = {
+    search: (lat, lng, serviceType) =>
+        apiClient.get('/api/v1/public/providers', { params: { lat, lng, service_type: serviceType } }),
+};
+
+// Public config API (no auth required)
+export const publicConfigAPI = {
+    getGoogleMaps: () => apiClient.get('/api/v1/public/config/google-maps'),
+};
+
+// Organization settings API
+export const organizationAPI = {
+    updateServiceArea: (data) => apiClient.put('/api/v1/organization/service-area', data),
+    updateServiceOffer: (data) => apiClient.put('/api/v1/organization/service-offer', data),
+};
+
 export default apiClient;

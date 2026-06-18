@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	uuid2 "github.com/google/uuid"
@@ -32,13 +33,15 @@ type AuthServiceImpl struct {
 	otpRepo              *repository.OTPRepository
 	workerRepo           *repository.WorkerRepository
 	organizationUserRepo *repository.OrganizationUserRepository
+	orgRepo              *repository.OrganizationRepository
 	twilioClient         *twilio.RestClient
 }
 
-func NewAuthService(workerRepository *repository.WorkerRepository, otpRepository *repository.OTPRepository, userRepository *repository.OrganizationUserRepository) AuthService {
+func NewAuthService(workerRepository *repository.WorkerRepository, otpRepository *repository.OTPRepository, userRepository *repository.OrganizationUserRepository, orgRepository *repository.OrganizationRepository) AuthService {
 	return &AuthServiceImpl{
 		workerRepo:           workerRepository,
 		organizationUserRepo: userRepository,
+		orgRepo:              orgRepository,
 		otpRepo:              otpRepository,
 		twilioClient:         twilio.NewRestClientWithParams(twilio.ClientParams{Username: os.Getenv("TWILIO_SID"), Password: os.Getenv("TWILIO_AUTH_TOKEN")}),
 	}
@@ -48,13 +51,21 @@ func (s *AuthServiceImpl) RegisterOrganization(ctx context.Context, email, passw
 	// 1. Check if user exists
 	existingUser, _ := s.organizationUserRepo.FindByEmail(email)
 	if existingUser != nil {
-		return nil, nil, "", errors.New("Email already registered")
+		return nil, nil, "", errors.New("email already registered")
 	}
+
+	ch := make(chan error, 1)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		ch <- s.RequestWorkerOTP(phone, s.generateCompanyCode(companyName))
+		wg.Done()
+	}()
 
 	// 2. Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, nil, "", errors.New("Failed to process password")
+		return nil, nil, "", errors.New("failed to process password")
 	}
 
 	// 3. Set default industry
@@ -83,13 +94,13 @@ func (s *AuthServiceImpl) RegisterOrganization(ctx context.Context, email, passw
 
 	// 6. Save both
 	if err := s.organizationUserRepo.CreateOrganizationWithUser(org, user); err != nil {
-		return nil, nil, "", errors.New("Failed to create account")
+		return nil, nil, "", errors.New("failed to create account")
 	}
 
 	// 7. Generate token (business logic)
 	token, err := utils.GenerateToken(user.ID, user.OrganizationID, user.Email, user.Role, "user")
 	if err != nil {
-		return nil, nil, "", errors.New("Failed to generate token")
+		return nil, nil, "", errors.New("failed to generate token")
 	}
 
 	// 8. Clear password before returning
@@ -116,7 +127,7 @@ func (s *AuthServiceImpl) GetUserProfile(userID uint) (*models.OrganizationUser,
 	}
 
 	// 2. Get organization
-	org, err := s.organizationUserRepo.FindOrganizationByID(user.OrganizationID)
+	org, err := s.orgRepo.FindByID(user.OrganizationID)
 	if err != nil {
 		return nil, nil, errors.New("Failed to fetch organization")
 	}
@@ -140,15 +151,15 @@ func (s *AuthServiceImpl) Login(ctx context.Context, email string, password stri
 	}
 
 	// 3. Get organization
-	org, err := s.organizationUserRepo.FindOrganizationByID(user.OrganizationID)
+	org, err := s.orgRepo.FindByID(user.OrganizationID)
 	if err != nil {
-		return nil, nil, "", errors.New("Failed to fetch organization")
+		return nil, nil, "", errors.New("failed to fetch organization")
 	}
 
 	// 4. Generate token (business logic)
 	token, err := utils.GenerateToken(user.ID, user.OrganizationID, user.Email, user.Role, "user")
 	if err != nil {
-		return nil, nil, "", errors.New("Failed to generate token")
+		return nil, nil, "", errors.New("failed to generate token")
 	}
 
 	// 5. Clear password before returning
@@ -159,7 +170,6 @@ func (s *AuthServiceImpl) Login(ctx context.Context, email string, password stri
 
 func (s *AuthServiceImpl) RequestWorkerOTP(phone, companyCode string) error {
 	// 1. Find worker
-
 	worker, err := s.workerRepo.FindByPhoneAndCompanyCode(phone, companyCode)
 	if err != nil {
 		return err

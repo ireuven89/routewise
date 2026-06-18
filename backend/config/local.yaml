@@ -1,0 +1,20 @@
+server:
+  port: 8080
+  cors:
+    allowed_origins:
+      - "http://localhost:3000"
+    allowed_methods:
+      - "GET"
+      - "PUT"
+      - "POST"
+      - "DELETE"
+      - "OPTIONS"
+    allowed_headers:
+      - "Content-Type"
+      - "Authorization"
+
+database:
+  host: localhost
+  port: 5432
+  user_name: admin
+ # password: your_password

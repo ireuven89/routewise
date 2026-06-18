@@ -249,6 +249,52 @@ const he = {
         error: 'נכשל ביצירת קריאת שירות. אנא נסו שנית.',
     },
 
+    // ─── Find Service (customer discovery) ──────────────────────────────────
+    findService: {
+        title: 'מצאו ספק שירות באזורכם',
+        subtitle: 'הזינו את כתובתכם וזמן מועדף לקבלת רשימת ספקים זמינים',
+        yourAddress: 'הכתובת שלכם',
+        addressPlaceholder: 'הזינו את כתובתכם',
+        preferredTime: 'זמן מועדף לביקור',
+        searchBtn: 'חיפוש ספקים',
+        searching: 'מחפש...',
+        noResults: 'לא נמצאו ספקים באזורכם. נסו לשנות את הכתובת.',
+        away: 'ק"מ ממכם',
+        visitFee: 'דמי ביקור',
+        repairEstimate: 'הערכת תיקון',
+        call: 'התקשרו',
+        forProviders: 'ספקי שירות? התחברו',
+        problemLabel: 'תארו את הבעיה',
+        problemPlaceholder: 'למשל: המזגן לא מקרר, יש רעש חריג, נזל מים...',
+        badge1: 'ללא עמלות',
+        badge2: 'מחירים שקופים',
+        badge3: 'טכנאים מוסמכים',
+        resultsFound: 'ספקים נמצאו',
+    },
+
+    // ─── Organization Settings ───────────────────────────────────────────────
+    settings: {
+        title: 'הגדרות',
+        saving: 'שומר...',
+        saved: 'נשמר!',
+        saveError: 'שגיאה בשמירה, נסו שנית',
+        serviceArea: {
+            title: 'אזור שירות',
+            current: 'כתובת נוכחית',
+            address: 'כתובת מרכז הפעילות',
+            addressPlaceholder: 'הזינו את כתובת העסק',
+            radius: 'רדיוס שירות',
+            save: 'שמירת אזור שירות',
+        },
+        pricing: {
+            title: 'מחירים',
+            visitFee: 'דמי ביקור',
+            repairMin: 'הערכת תיקון מינימום',
+            repairMax: 'הערכת תיקון מקסימום',
+            save: 'שמירת מחירים',
+        },
+    },
+
     // ─── Footer ─────────────────────────────────────────────────────────────
     footer: {
         copyright: '© 2026 RouteWise. תוכנה לניהול שירותי שדה.',

@@ -21,6 +21,13 @@ func SetupRoutes(router *gin.Engine, h handlers.Handlers) {
 		v1.POST("/workers/request-otp", h.Auth.RequestWorkerOTP)
 		v1.POST("/worker/verify-otp", h.Auth.VerifyWorkerOTP)
 
+		// Public customer discovery routes (no auth)
+		public := v1.Group("/public")
+		{
+			public.GET("/providers", h.Provider.SearchProviders)
+			public.GET("/config/google-maps", h.Provider.GetPublicGoogleMapsConfig)
+		}
+
 		// Protected routes
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware())
@@ -61,6 +68,10 @@ func SetupRoutes(router *gin.Engine, h handlers.Handlers) {
 			protected.GET("projects/:id/files", h.Files.ListFiles)
 			protected.GET("/files/:id", h.Files.GetFile)
 			protected.DELETE("/files/:id", h.Files.DeleteFile)
+
+			// Organization settings (service area + pricing)
+			protected.PUT("/organization/service-area", h.Provider.UpdateServiceArea)
+			protected.PUT("/organization/service-offer", h.Provider.UpdateServiceOffer)
 		}
 	}
 }

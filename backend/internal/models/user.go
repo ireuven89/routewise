@@ -13,8 +13,24 @@ type Organization struct {
 	CompanyCode string    `json:"company_code"`
 	Phone       string    `json:"phone"`
 	Industry    string    `json:"industry"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+
+	// Service area
+	Latitude          *float64          `json:"latitude,omitempty"`
+	Longitude         *float64          `json:"longitude,omitempty"`
+	Address           string            `json:"address,omitempty"`
+	ServiceRadiusKm   float64           `json:"service_radius_km"`
+	GooglePlaceID     string            `json:"google_place_id,omitempty"`
+	FormattedAddress  string            `json:"formatted_address,omitempty"`
+	AddressComponents map[string]string `json:"address_components,omitempty"`
+	GeocodedAt        *time.Time        `json:"geocoded_at,omitempty"`
+
+	// Pricing
+	VisitFee          *float64 `json:"visit_fee,omitempty"`
+	RepairEstimateMin *float64 `json:"repair_estimate_min,omitempty"`
+	RepairEstimateMax *float64 `json:"repair_estimate_max,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // OrganizationUser represents admins/dispatchers who manage the organization

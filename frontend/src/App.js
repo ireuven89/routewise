@@ -7,6 +7,8 @@ import Dashboard from './pages/Dashboard';
 import Jobs from "./pages/Jobs";
 import Customers from "./pages/Customers";
 import Workers from "./pages/Workers";
+import FindService from "./pages/FindService";
+import OrganizationSettings from "./pages/OrganizationSettings";
 import './rtl.css';
 import {LanguageProvider} from "./context/LanguageContext";
 
@@ -53,6 +55,18 @@ function App() {
                             </PrivateRoute>
                         }
                     />
+
+                    <Route
+                        path="/settings"
+                        element={
+                            <PrivateRoute>
+                                <OrganizationSettings />
+                            </PrivateRoute>
+                        }
+                    />
+
+                    {/* Public customer discovery page */}
+                    <Route path="/find-service" element={<FindService />} />
 
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 </Routes>

@@ -248,6 +248,52 @@ const en = {
         error: 'Failed to create service call. Please try again.',
     },
 
+    // ─── Find Service (customer discovery) ──────────────────────────────────
+    findService: {
+        title: 'Find a Service Provider Near You',
+        subtitle: 'Enter your address and preferred time to see available providers in your area',
+        yourAddress: 'Your Address',
+        addressPlaceholder: 'Enter your address',
+        preferredTime: 'Preferred Appointment Time',
+        searchBtn: 'Search Providers',
+        searching: 'Searching...',
+        noResults: 'No providers found in your area. Try a different address.',
+        away: 'km away',
+        visitFee: 'Visit Fee',
+        repairEstimate: 'Repair Estimate',
+        call: 'Call',
+        forProviders: 'Service provider? Sign in',
+        problemLabel: 'Describe your problem',
+        problemPlaceholder: 'e.g. AC not cooling, strange noise, water leaking...',
+        badge1: 'No commission fees',
+        badge2: 'Transparent pricing',
+        badge3: 'Certified technicians',
+        resultsFound: 'providers found',
+    },
+
+    // ─── Organization Settings ───────────────────────────────────────────────
+    settings: {
+        title: 'Settings',
+        saving: 'Saving...',
+        saved: 'Saved!',
+        saveError: 'Error saving, please try again',
+        serviceArea: {
+            title: 'Service Area',
+            current: 'Current address',
+            address: 'Business Center Address',
+            addressPlaceholder: 'Enter your business address',
+            radius: 'Service Radius',
+            save: 'Save Service Area',
+        },
+        pricing: {
+            title: 'Pricing',
+            visitFee: 'Visit Fee',
+            repairMin: 'Repair Estimate Minimum',
+            repairMax: 'Repair Estimate Maximum',
+            save: 'Save Pricing',
+        },
+    },
+
     // ─── Footer ─────────────────────────────────────────────────────────────
     footer: {
         copyright: '© 2026 RouteWise. Field service management software.',

@@ -8,6 +8,7 @@ type Handlers struct {
 	Files      *FileHandler
 	Health     *HealthHandler
 	Geocoding  *GeocodingHandler
+	Provider   *ProviderHandler
 }
 
 // NewHandlers creates the handlers struct (just grouping, not wiring)
@@ -19,6 +20,7 @@ func NewHandlers(
 	files *FileHandler,
 	health *HealthHandler,
 	geocoding *GeocodingHandler,
+	provider *ProviderHandler,
 ) *Handlers {
 	return &Handlers{
 		Auth:       auth,
@@ -28,5 +30,6 @@ func NewHandlers(
 		Files:      files,
 		Health:     health,
 		Geocoding:  geocoding,
+		Provider:   provider,
 	}
 }
