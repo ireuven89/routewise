@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FiMapPin, FiClock, FiSearch, FiPhone, FiCheckCircle, FiWind } from 'react-icons/fi';
-import { providersAPI, publicConfigAPI } from '../api/client';
+import { FiMapPin, FiClock, FiSearch, FiPhone, FiCheckCircle, FiWind, FiDroplet, FiZap, FiSend, FiX } from 'react-icons/fi';
+import { FaGlobe } from 'react-icons/fa';
+import { providersAPI, publicConfigAPI, serviceRequestsAPI } from '../api/client';
 import { useLanguage } from '../context/LanguageContext';
 import GooglePlacesAutocomplete from '../components/GooglePlacesAutocomplete';
 import { loadGoogleMapsScript } from '../utils/googleMaps';
@@ -26,7 +27,7 @@ const ProviderInitials = ({ name }) => {
     );
 };
 
-const ProviderCard = ({ provider, t }) => (
+const ProviderCard = ({ provider, t, onRequest }) => (
     <div className="bg-white rounded-2xl shadow-md hover:shadow-lg transition-shadow p-6 border border-gray-100">
         <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-4 min-w-0">
@@ -44,16 +45,28 @@ const ProviderCard = ({ provider, t }) => (
                     </span>
                 </div>
             </div>
-            <a
-                href={`tel:${provider.phone}`}
-                className="flex-shrink-0 flex items-center gap-2 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
-                style={{ background: BRAND }}
-                onMouseEnter={e => e.currentTarget.style.background = BRAND_LIGHT}
-                onMouseLeave={e => e.currentTarget.style.background = BRAND}
-            >
-                <FiPhone className="w-4 h-4" />
-                {t('findService.call')}
-            </a>
+            <div className="flex flex-col gap-2 flex-shrink-0">
+                <a
+                    href={`tel:${provider.phone}`}
+                    className="flex items-center gap-2 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+                    style={{ background: BRAND }}
+                    onMouseEnter={e => e.currentTarget.style.background = BRAND_LIGHT}
+                    onMouseLeave={e => e.currentTarget.style.background = BRAND}
+                >
+                    <FiPhone className="w-4 h-4" />
+                    {t('findService.call')}
+                </a>
+                <button
+                    onClick={() => onRequest(provider)}
+                    className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border-2 transition-colors"
+                    style={{ borderColor: BRAND, color: BRAND }}
+                    onMouseEnter={e => { e.currentTarget.style.background = BRAND; e.currentTarget.style.color = '#fff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = BRAND; }}
+                >
+                    <FiSend className="w-4 h-4" />
+                    {t('findService.requestService')}
+                </button>
+            </div>
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
@@ -75,6 +88,134 @@ const ProviderCard = ({ provider, t }) => (
     </div>
 );
 
+const RequestModal = ({ provider, prefillMessage, serviceType, requestedTime, location, t, isRTL, onClose }) => {
+    const [name, setName] = useState('');
+    const [phone, setPhone] = useState('');
+    const [message, setMessage] = useState(prefillMessage || '');
+    const [status, setStatus] = useState(null); // null | 'loading' | 'success' | 'error'
+
+    const handleSubmit = async () => {
+        if (!name.trim() || !phone.trim()) return;
+        setStatus('loading');
+        try {
+            await serviceRequestsAPI.create({
+                provider_id: provider.id,
+                customer_name: name.trim(),
+                customer_phone: phone.trim(),
+                message: message.trim(),
+                service_type: serviceType,
+                requested_time: requestedTime || null,
+                customer_lat: location?.latitude || null,
+                customer_lng: location?.longitude || null,
+            });
+            setStatus('success');
+        } catch {
+            setStatus('error');
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir={isRTL ? 'rtl' : 'ltr'}>
+            <div className="absolute inset-0 bg-black/50" onClick={status !== 'loading' ? onClose : undefined} />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+                {status === 'success' ? (
+                    <div className="text-center py-4">
+                        <FiCheckCircle className="w-14 h-14 text-green-500 mx-auto mb-3" />
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">{t('findService.requestSent')}</h3>
+                        <p className="text-sm text-gray-500 mb-6">{provider.name} {t('findService.requestSentSub')}</p>
+                        <button
+                            onClick={onClose}
+                            className="w-full py-3 rounded-xl font-semibold text-white"
+                            style={{ background: BRAND }}
+                        >
+                            {t('findService.close')}
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex items-start justify-between mb-4">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">{t('findService.requestService')}</h3>
+                                <p className="text-sm text-gray-500">{provider.name}</p>
+                            </div>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
+                                <FiX className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                                    {t('findService.yourName')} *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={e => setName(e.target.value)}
+                                    className="block w-full h-10 rounded-lg border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder={t('findService.namePlaceholder')}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                                    {t('findService.yourPhone')} *
+                                </label>
+                                <input
+                                    type="tel"
+                                    value={phone}
+                                    onChange={e => setPhone(e.target.value)}
+                                    className="block w-full h-10 rounded-lg border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="050-123-4567"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                                    {t('findService.problemLabel')}
+                                </label>
+                                <textarea
+                                    value={message}
+                                    onChange={e => setMessage(e.target.value)}
+                                    rows={3}
+                                    placeholder={t('findService.problemPlaceholder')}
+                                    className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                />
+                            </div>
+                        </div>
+
+                        {status === 'error' && (
+                            <p className="text-sm text-red-500 mt-3">{t('findService.requestError')}</p>
+                        )}
+
+                        <div className="flex gap-3 mt-5">
+                            <button
+                                onClick={onClose}
+                                disabled={status === 'loading'}
+                                className="flex-1 py-3 rounded-xl font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                            >
+                                {t('findService.cancelRequest')}
+                            </button>
+                            <button
+                                onClick={handleSubmit}
+                                disabled={!name.trim() || !phone.trim() || status === 'loading'}
+                                className="flex-1 py-3 rounded-xl font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{ background: BRAND }}
+                            >
+                                {status === 'loading' ? t('findService.sending') : t('findService.sendRequest')}
+                            </button>
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const SERVICE_TYPES = [
+    { value: 'hvac',       icon: FiWind,    labelKey: 'findService.hvac' },
+    { value: 'plumbing',   icon: FiDroplet, labelKey: 'findService.plumbing' },
+    { value: 'electrical', icon: FiZap,     labelKey: 'findService.electrical' },
+];
+
 const TrustBadge = ({ icon: Icon, text }) => (
     <div className="flex items-center gap-2 text-white/90 text-sm">
         <Icon className="w-4 h-4 text-green-400" />
@@ -83,7 +224,7 @@ const TrustBadge = ({ icon: Icon, text }) => (
 );
 
 const FindService = () => {
-    const { t, language } = useLanguage();
+    const { t, language, toggleLanguage } = useLanguage();
     const isRTL = language === 'he';
 
     const [googleMapsApiKey, setGoogleMapsApiKey] = useState(null);
@@ -94,6 +235,8 @@ const FindService = () => {
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
     const [error, setError] = useState('');
+    const [serviceType, setServiceType] = useState('');
+    const [requestProvider, setRequestProvider] = useState(null);
 
     useEffect(() => {
         publicConfigAPI.getGoogleMaps()
@@ -112,7 +255,7 @@ const FindService = () => {
         setSearched(true);
         setError('');
         try {
-            const res = await providersAPI.search(location.latitude, location.longitude, 'hvac');
+            const res = await providersAPI.search(location.latitude, location.longitude, serviceType);
             setProviders(res.data.providers || []);
         } catch {
             setError(t('settings.saveError'));
@@ -134,12 +277,21 @@ const FindService = () => {
                         <FiWind className="w-6 h-6 text-white" />
                         <span className="text-xl font-bold text-white tracking-tight">RouteWise</span>
                     </div>
-                    <Link
-                        to="/login"
-                        className="text-sm font-medium text-white/80 hover:text-white border border-white/30 hover:border-white/60 px-4 py-1.5 rounded-full transition-all"
-                    >
-                        {t('findService.forProviders')}
-                    </Link>
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={toggleLanguage}
+                            className="flex items-center gap-1.5 text-sm font-medium text-white/80 hover:text-white transition-colors"
+                        >
+                            <FaGlobe className="w-4 h-4" />
+                            {language === 'he' ? 'English' : 'עברית'}
+                        </button>
+                        <Link
+                            to="/login"
+                            className="text-sm font-medium text-white/80 hover:text-white border border-white/30 hover:border-white/60 px-4 py-1.5 rounded-full transition-all"
+                        >
+                            {t('findService.forProviders')}
+                        </Link>
+                    </div>
                 </nav>
 
                 {/* Headline */}
@@ -155,6 +307,28 @@ const FindService = () => {
                 {/* Search card */}
                 <div className="max-w-3xl mx-auto px-6 pb-0">
                     <div className="bg-white rounded-2xl shadow-2xl p-6">
+                        {/* Service Type Selector */}
+                        <div className="mb-5">
+                            <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                                {t('findService.serviceTypeLabel')}
+                            </label>
+                            <div className="grid grid-cols-3 gap-3">
+                                {SERVICE_TYPES.map(({ value, icon: Icon, labelKey }) => {
+                                    const selected = serviceType === value;
+                                    return (
+                                        <button
+                                            key={value}
+                                            type="button"
+                                            onClick={() => setServiceType(value)}
+                                            className={`flex flex-col items-center justify-center gap-2 py-4 px-3 rounded-xl border-2 transition-all text-sm font-semibold ${selected ? 'border-[#1e3a5f] bg-[#1e3a5f] text-white shadow-md' : 'border-gray-200 bg-white text-gray-600 hover:border-[#1e3a5f] hover:text-[#1e3a5f]'}`}
+                                        >
+                                            <Icon className="w-6 h-6" />
+                                            {t(labelKey)}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
                         <div className="grid sm:grid-cols-2 gap-4 mb-4">
                             <div>
                                 <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
@@ -199,7 +373,7 @@ const FindService = () => {
                         </div>
                         <button
                             onClick={handleSearch}
-                            disabled={!location || loading}
+                            disabled={!location || !serviceType || loading}
                             className="w-full flex items-center justify-center gap-2 text-white font-bold py-3 rounded-xl text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             style={{ background: location && !loading ? BRAND : undefined, backgroundColor: !location || loading ? '#94a3b8' : undefined }}
                         >
@@ -254,7 +428,7 @@ const FindService = () => {
                             </p>
                             <div className="space-y-4">
                                 {providers.map(provider => (
-                                    <ProviderCard key={provider.id} provider={provider} t={t} />
+                                    <ProviderCard key={provider.id} provider={provider} t={t} onRequest={setRequestProvider} />
                                 ))}
                             </div>
                         </>
@@ -266,6 +440,20 @@ const FindService = () => {
             <footer className="border-t border-gray-200 py-6 text-center text-xs text-gray-400">
                 {t('footer.copyright')}
             </footer>
+
+            {/* ── Request Modal ── */}
+            {requestProvider && (
+                <RequestModal
+                    provider={requestProvider}
+                    prefillMessage={description}
+                    serviceType={serviceType}
+                    requestedTime={requestedTime}
+                    location={location}
+                    t={t}
+                    isRTL={isRTL}
+                    onClose={() => setRequestProvider(null)}
+                />
+            )}
         </div>
     );
 };
