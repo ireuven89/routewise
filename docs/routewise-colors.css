@@ -1,0 +1,133 @@
+/* RouteWise Color Rebrand - Drop this in your CSS */
+
+:root {
+  /* Primary Colors */
+  --primary: #1e3a5f;
+  --primary-hover: #2d4a6f;
+  --accent: #ff6b35;
+  --accent-hover: #ff8555;
+  
+  /* Backgrounds */
+  --bg-light: #f5f7fa;
+  --bg-white: #ffffff;
+  --input-bg: #e8eef5;
+  
+  /* Text */
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b7280;
+  
+  /* Status */
+  --status-in-progress: #ff6b35;
+  --status-completed: #10b981;
+  --status-scheduled: #3b82f6;
+  --status-on-hold: #6b7280;
+}
+
+/* Global Styles */
+body {
+  background: var(--bg-light);
+  color: var(--text-primary);
+}
+
+/* Buttons */
+.btn-primary,
+button.primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.btn-accent,
+button.accent {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-accent:hover {
+  background: var(--accent-hover);
+}
+
+/* Header/Navbar */
+header,
+nav,
+.navbar,
+.header {
+  background: var(--primary);
+  color: white;
+}
+
+/* Cards */
+.card {
+  background: var(--bg-white);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  padding: 1.5rem;
+}
+
+/* Inputs */
+input,
+textarea,
+select {
+  background: var(--input-bg);
+  border: 1px solid #d4dde8;
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+/* Status Badges */
+.badge-in-progress {
+  background: var(--status-in-progress);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+}
+
+.badge-completed {
+  background: var(--status-completed);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+}
+
+.badge-scheduled {
+  background: var(--status-scheduled);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+}
+
+.badge-on-hold {
+  background: var(--status-on-hold);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+}
+
+/* Links */
+a {
+  color: var(--accent);
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+/* Active States */
+.active,
+[aria-current="page"] {
+  color: var(--accent);
+}

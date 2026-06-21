@@ -3,8 +3,9 @@ package repository
 import (
 	"database/sql"
 	"errors"
-	"github.com/ireuven89/routewise/internal/models"
 	"time"
+
+	"github.com/ireuven89/routewise/internal/models"
 )
 
 type OrganizationUserRepository struct {
@@ -126,30 +127,3 @@ func (r *OrganizationUserRepository) FindByID(id uint) (*models.OrganizationUser
 	return user, nil
 }
 
-func (r *OrganizationUserRepository) FindOrganizationByID(id uint) (*models.Organization, error) {
-	query := `
-		SELECT id, name, phone, industry, created_at, updated_at
-		FROM organizations
-		WHERE id = $1
-	`
-
-	org := &models.Organization{}
-	err := r.db.QueryRow(query, id).Scan(
-		&org.ID,
-		&org.Name,
-		&org.Phone,
-		&org.Industry,
-		&org.CreatedAt,
-		&org.UpdatedAt,
-	)
-
-	if err == sql.ErrNoRows {
-		return nil, errors.New("organization not found")
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return org, nil
-}

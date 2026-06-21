@@ -1,0 +1,8 @@
+server:
+  port: 8080
+
+postgres:
+  address: $DB_HOST
+  port: 5432
+  user: $DB_USER
+  password: $DB_PASSWORD

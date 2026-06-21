@@ -50,6 +50,12 @@ const Navbar = () => {
                             >
                                 {t(`industry.${industry}.workers`)}
                             </Link>
+                            <Link
+                                to="/settings"
+                                className="border-transparent text-gray-900 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                            >
+                                {t('nav.settings')}
+                            </Link>
                         </div>
                     </div>
                     <div className="flex items-center gap-4">

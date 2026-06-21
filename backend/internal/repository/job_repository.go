@@ -452,6 +452,41 @@ func (r *JobRepository) Delete(id uint, organizationID uint) error {
 	return nil
 }
 
+// CountOverlappingInProgressJobs returns the number of in_progress jobs for a technician
+// whose time window overlaps [windowStart, windowEnd].
+func (r *JobRepository) CountOverlappingInProgressJobs(
+	technicianID, organizationID uint,
+	windowStart, windowEnd time.Time,
+) (int, error) {
+	query := `
+		SELECT COUNT(*) FROM jobs
+		WHERE technician_id = $1 AND organization_id = $2
+		  AND status = 'in_progress'
+		  AND scheduled_at < $4
+		  AND scheduled_at + (duration_minutes * interval '1 minute') > $3
+	`
+	var count int
+	err := r.db.QueryRow(query, technicianID, organizationID, windowStart, windowEnd).Scan(&count)
+	return count, err
+}
+
+// CountTodayJobsForTechnician returns the number of non-cancelled/completed jobs
+// scheduled for a technician on the same calendar day as refTime.
+func (r *JobRepository) CountTodayJobsForTechnician(
+	technicianID, organizationID uint,
+	refTime time.Time,
+) (int, error) {
+	query := `
+		SELECT COUNT(*) FROM jobs
+		WHERE technician_id = $1 AND organization_id = $2
+		  AND status NOT IN ('cancelled', 'completed')
+		  AND DATE(scheduled_at) = DATE($3)
+	`
+	var count int
+	err := r.db.QueryRow(query, technicianID, organizationID, refTime).Scan(&count)
+	return count, err
+}
+
 // Photo methods
 func (r *JobRepository) AddPhoto(jobID uint, organizationID uint, url string, description string) error {
 	// First verify the job belongs to the organization

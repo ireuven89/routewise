@@ -109,6 +109,7 @@ func (s *WorkerSvc) GetByID(ctx context.Context, id, organizationID uint) (*mode
 	if err != nil {
 		return nil, ErrWorkerNotFound
 	}
+
 	return worker, nil
 }
 
@@ -117,6 +118,8 @@ func (s *WorkerSvc) Update(ctx context.Context, id, organizationID uint, input U
 	if err != nil {
 		return nil, ErrWorkerNotFound
 	}
+
+	worker.OrganizationID = organizationID
 
 	homeAddressChanged := false
 	if input.Name != "" {
