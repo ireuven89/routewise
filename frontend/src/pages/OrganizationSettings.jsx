@@ -27,10 +27,10 @@ const OrganizationSettings = () => {
 
     useEffect(() => {
         apiClient.get('/api/v1/config/google-maps')
-            .then(res => {
+            .then(async (res) => {
                 if (res.data.enabled && res.data.api_key) {
+                    await loadGoogleMapsScript(res.data.api_key);
                     setGoogleMapsApiKey(res.data.api_key);
-                    loadGoogleMapsScript(res.data.api_key);
                 }
             })
             .catch(() => {});
