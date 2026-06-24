@@ -89,6 +89,11 @@ export const providersAPI = {
         apiClient.get('/api/v1/public/providers', { params: { lat, lng, service_type: serviceType } }),
 };
 
+// Public service request API (no auth required)
+export const serviceRequestsAPI = {
+    create: (data) => apiClient.post('/api/v1/public/service-requests', data),
+};
+
 // Public config API (no auth required)
 export const publicConfigAPI = {
     getGoogleMaps: () => apiClient.get('/api/v1/public/config/google-maps'),
