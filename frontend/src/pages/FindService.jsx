@@ -240,10 +240,10 @@ const FindService = () => {
 
     useEffect(() => {
         publicConfigAPI.getGoogleMaps()
-            .then(res => {
+            .then(async (res) => {
                 if (res.data.enabled && res.data.api_key) {
+                    await loadGoogleMapsScript(res.data.api_key);
                     setGoogleMapsApiKey(res.data.api_key);
-                    loadGoogleMapsScript(res.data.api_key);
                 }
             })
             .catch(() => {});
