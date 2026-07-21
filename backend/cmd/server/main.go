@@ -79,6 +79,7 @@ func main() {
 	googleMapsFrontendAPIKey := os.Getenv("GOOGLE_MAPS_FRONTEND_API_KEY")
 	geocodingHandler := handlers.NewGeocodingHandler(googleMapsFrontendAPIKey)
 	providerHandler := handlers.NewProviderHandler(providerService, googleMapsFrontendAPIKey)
+	dashboardHandler := handlers.NewDashboardHandler(jobService)
 
 	h := handlers.NewHandlers(
 		authHandler,
@@ -89,6 +90,7 @@ func main() {
 		healthHandler,
 		geocodingHandler,
 		providerHandler,
+		dashboardHandler,
 	)
 
 	// Setup routes

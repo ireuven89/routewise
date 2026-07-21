@@ -77,6 +77,18 @@ const en = {
         available: 'Available',
         onsite: 'On-site',
         offline: 'Offline',
+
+        // Revenue board
+        revenue: {
+            title: 'Revenue Overview',
+            totalRevenue: 'Total Revenue',
+            thisMonth: 'This Month',
+            thisWeek: 'This Week',
+            avgJobValue: 'Avg Job Value',
+            monthlyTrend: 'Monthly Trend',
+            noData: 'No revenue data yet',
+            currency: '₪',
+        },
     },
 
     // ─── Industry-specific labels ───────────────────────────────────────────

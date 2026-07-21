@@ -72,6 +72,9 @@ func SetupRoutes(router *gin.Engine, h handlers.Handlers) {
 			// Organization settings (service area + pricing)
 			protected.PUT("/organization/service-area", h.Provider.UpdateServiceArea)
 			protected.PUT("/organization/service-offer", h.Provider.UpdateServiceOffer)
+
+			// Dashboard stats
+			protected.GET("/dashboard/stats", h.Dashboard.GetStats)
 		}
 	}
 }

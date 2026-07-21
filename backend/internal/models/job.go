@@ -35,6 +35,23 @@ type Job struct {
 	Worker          *Worker    `json:"worker,omitempty" gorm:"foreignKey:workerID"`
 }
 
+type MonthlyRevenue struct {
+	Month   string  `json:"month"`
+	Revenue float64 `json:"revenue"`
+}
+
+type RevenueStats struct {
+	Total          float64          `json:"total"`
+	ThisMonth      float64          `json:"this_month"`
+	ThisWeek       float64          `json:"this_week"`
+	AvgJobValue    float64          `json:"avg_job_value"`
+	RevenueByMonth []MonthlyRevenue `json:"revenue_by_month"`
+}
+
+type DashboardStats struct {
+	Revenue *RevenueStats `json:"revenue"`
+}
+
 // JSON type for JSONB support
 type JSON map[string]interface{}
 

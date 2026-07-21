@@ -129,7 +129,7 @@ func (s *AuthServiceImpl) GetUserProfile(userID uint) (*models.OrganizationUser,
 	// 2. Get organization
 	org, err := s.orgRepo.FindByID(user.OrganizationID)
 	if err != nil {
-		return nil, nil, errors.New("Failed to fetch organization")
+		return nil, nil, errors.New("failed to fetch organization")
 	}
 
 	// 3. Clear password before returning
@@ -142,12 +142,12 @@ func (s *AuthServiceImpl) Login(ctx context.Context, email string, password stri
 	// 1. Find user
 	user, err := s.organizationUserRepo.FindByEmail(email)
 	if err != nil {
-		return nil, nil, "", errors.New("Invalid credentials")
+		return nil, nil, "", errors.New("invalid credentials")
 	}
 
 	// 2. Verify password (business logic)
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		return nil, nil, "", errors.New("Invalid credentials")
+		return nil, nil, "", errors.New("invalid credentials")
 	}
 
 	// 3. Get organization
