@@ -452,6 +452,68 @@ func (r *JobRepository) Delete(id uint, organizationID uint) error {
 	return nil
 }
 
+func (r *JobRepository) GetRevenueStats(organizationID uint) (*models.RevenueStats, error) {
+	stats := &models.RevenueStats{RevenueByMonth: []models.MonthlyRevenue{}}
+
+	err := r.db.QueryRow(`
+		SELECT COALESCE(SUM(price), 0) FROM jobs
+		WHERE organization_id = $1 AND status = 'completed' AND price IS NOT NULL
+	`, organizationID).Scan(&stats.Total)
+	if err != nil {
+		return nil, err
+	}
+
+	err = r.db.QueryRow(`
+		SELECT COALESCE(SUM(price), 0) FROM jobs
+		WHERE organization_id = $1 AND status = 'completed' AND price IS NOT NULL
+		  AND DATE_TRUNC('month', completed_at) = DATE_TRUNC('month', NOW())
+	`, organizationID).Scan(&stats.ThisMonth)
+	if err != nil {
+		return nil, err
+	}
+
+	err = r.db.QueryRow(`
+		SELECT COALESCE(SUM(price), 0) FROM jobs
+		WHERE organization_id = $1 AND status = 'completed' AND price IS NOT NULL
+		  AND DATE_TRUNC('week', completed_at) = DATE_TRUNC('week', NOW())
+	`, organizationID).Scan(&stats.ThisWeek)
+	if err != nil {
+		return nil, err
+	}
+
+	err = r.db.QueryRow(`
+		SELECT COALESCE(AVG(price), 0) FROM jobs
+		WHERE organization_id = $1 AND status = 'completed' AND price IS NOT NULL
+	`, organizationID).Scan(&stats.AvgJobValue)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.db.Query(`
+		SELECT TO_CHAR(DATE_TRUNC('month', completed_at), 'YYYY-MM') AS month,
+		       COALESCE(SUM(price), 0) AS revenue
+		FROM jobs
+		WHERE organization_id = $1 AND status = 'completed' AND price IS NOT NULL
+		  AND completed_at >= NOW() - INTERVAL '6 months'
+		GROUP BY DATE_TRUNC('month', completed_at)
+		ORDER BY DATE_TRUNC('month', completed_at) ASC
+	`, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var mr models.MonthlyRevenue
+		if err := rows.Scan(&mr.Month, &mr.Revenue); err != nil {
+			return nil, err
+		}
+		stats.RevenueByMonth = append(stats.RevenueByMonth, mr)
+	}
+
+	return stats, nil
+}
+
 // CountOverlappingInProgressJobs returns the number of in_progress jobs for a technician
 // whose time window overlaps [windowStart, windowEnd].
 func (r *JobRepository) CountOverlappingInProgressJobs(

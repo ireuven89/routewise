@@ -31,6 +31,7 @@ type JobService interface {
 	AssignTechnician(id, organizationID uint, technicianID *uint) error
 	UpdateStatus(id, organizationID uint, status string) error
 	Delete(id, organizationID uint) error
+	GetDashboardStats(organizationID uint) (*models.DashboardStats, error)
 }
 
 type JobSvc struct {
@@ -162,4 +163,12 @@ func (s *JobSvc) UpdateStatus(id, organizationID uint, status string) error {
 
 func (s *JobSvc) Delete(id, organizationID uint) error {
 	return s.repo.Delete(id, organizationID)
+}
+
+func (s *JobSvc) GetDashboardStats(organizationID uint) (*models.DashboardStats, error) {
+	revenue, err := s.repo.GetRevenueStats(organizationID)
+	if err != nil {
+		return nil, err
+	}
+	return &models.DashboardStats{Revenue: revenue}, nil
 }

@@ -78,6 +78,18 @@ const he = {
         available: 'זמין',
         onsite: 'בשטח',
         offline: 'לא מחובר',
+
+        // Revenue board
+        revenue: {
+            title: 'סקירת הכנסות',
+            totalRevenue: 'סה"כ הכנסות',
+            thisMonth: 'החודש',
+            thisWeek: 'השבוע',
+            avgJobValue: 'ממוצע לעבודה',
+            monthlyTrend: 'מגמה חודשית',
+            noData: 'אין נתוני הכנסות עדיין',
+            currency: '₪',
+        },
     },
 
     // ─── Industry-specific labels ───────────────────────────────────────────

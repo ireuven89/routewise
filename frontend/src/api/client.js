@@ -105,4 +105,9 @@ export const organizationAPI = {
     updateServiceOffer: (data) => apiClient.put('/api/v1/organization/service-offer', data),
 };
 
+// Dashboard API
+export const dashboardAPI = {
+    getStats: () => apiClient.get('/api/v1/dashboard/stats'),
+};
+
 export default apiClient;
