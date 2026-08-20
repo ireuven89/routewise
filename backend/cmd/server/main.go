@@ -53,17 +53,20 @@ func main() {
 	customerRepo := repository.NewCustomerRepository(db)
 	jobRepo := repository.NewJobRepository(db, customerRepo)
 	orgRepo := repository.NewOrganizationRepository(db)
+	paymentNotificationRepo := repository.NewPaymentNotificationRepository(db)
 
 	//initialize services
 	s3Service, err := services.NewS3Service()
-	authService := service.NewAuthService(workerRepo, otpRepo, organizationUser, orgRepo)
+	notificationService := service.NewTwilioNotificationService()
+	authService := service.NewAuthService(workerRepo, otpRepo, organizationUser, orgRepo, notificationService)
 
 	// Initialize Google Maps geocoding service
 	googleMapsAPIKey := os.Getenv("GOOGLE_MAPS_API_KEY")
 	geocodingService := service.NewGeocodingService(googleMapsAPIKey)
 
 	workerService := service.NewWorkerService(workerRepo, geocodingService)
-	jobService := service.NewJobService(jobRepo)
+	paymentService := service.NewPaymentService(jobRepo, customerRepo, orgRepo, paymentNotificationRepo, notificationService)
+	jobService := service.NewJobService(jobRepo, paymentService)
 	customerService := service.NewCustomerService(customerRepo, geocodingService)
 	providerService := service.NewProviderService(orgRepo)
 
@@ -80,6 +83,7 @@ func main() {
 	geocodingHandler := handlers.NewGeocodingHandler(googleMapsFrontendAPIKey)
 	providerHandler := handlers.NewProviderHandler(providerService, googleMapsFrontendAPIKey)
 	dashboardHandler := handlers.NewDashboardHandler(jobService)
+	paymentHandler := handlers.NewPaymentHandler(paymentService)
 
 	h := handlers.NewHandlers(
 		authHandler,
@@ -91,6 +95,7 @@ func main() {
 		geocodingHandler,
 		providerHandler,
 		dashboardHandler,
+		paymentHandler,
 	)
 
 	// Setup routes

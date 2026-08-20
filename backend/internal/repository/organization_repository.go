@@ -25,6 +25,7 @@ func (r *OrganizationRepository) FindByID(id uint) (*models.Organization, error)
 		       latitude, longitude, address, service_radius_km,
 		       google_place_id, formatted_address, address_components, geocoded_at,
 		       visit_fee, repair_estimate_min, repair_estimate_max,
+		       bit_payment_enabled, bit_phone_number, bit_business_name, auto_send_payment_sms,
 		       created_at, updated_at
 		FROM organizations
 		WHERE id = $1
@@ -41,6 +42,7 @@ func (r *OrganizationRepository) FindByID(id uint) (*models.Organization, error)
 		&lat, &lng, &addr, &org.ServiceRadiusKm,
 		&placeID, &formattedAddress, &addressComponentsJSON, &geocodedAt,
 		&visitFee, &repairMin, &repairMax,
+		&org.BitPaymentEnabled, &org.BitPhoneNumber, &org.BitBusinessName, &org.AutoSendPaymentSMS,
 		&org.CreatedAt, &org.UpdatedAt,
 	)
 
@@ -111,6 +113,18 @@ func (r *OrganizationRepository) UpdateServiceOffer(ctx context.Context, orgID u
 		SET visit_fee = $1, repair_estimate_min = $2, repair_estimate_max = $3, updated_at = $4
 		WHERE id = $5`,
 		visitFee, repairMin, repairMax, time.Now(), orgID,
+	)
+	return err
+}
+
+// UpdatePaymentSettings persists Bit payment collection settings for the organization.
+func (r *OrganizationRepository) UpdatePaymentSettings(ctx context.Context, orgID uint, enabled bool, phone, businessName string, autoSend bool) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE organizations
+		SET bit_payment_enabled = $1, bit_phone_number = $2, bit_business_name = $3,
+		    auto_send_payment_sms = $4, updated_at = $5
+		WHERE id = $6`,
+		enabled, phone, businessName, autoSend, time.Now(), orgID,
 	)
 	return err
 }

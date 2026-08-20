@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
 	"testing"
+	"time"
 )
 
 // -----------------------------------------------------------------------
@@ -104,6 +106,217 @@ func newTestDB(t *testing.T, dsn string, rows driver.Rows) *sql.DB {
 		t.Fatalf("sql.Open: %v", err)
 	}
 	return db
+}
+
+// -----------------------------------------------------------------------
+// FindByID tests
+// -----------------------------------------------------------------------
+
+func TestFindByID_Success_ScansAllColumnsIncludingPaymentSettings(t *testing.T) {
+	lat, lng := 32.08, 34.78
+	visitFee := 150.0
+	rows := &fakeRows{
+		cols: []string{"id", "name", "phone", "industry", "company_code",
+			"latitude", "longitude", "address", "service_radius_km",
+			"google_place_id", "formatted_address", "address_components", "geocoded_at",
+			"visit_fee", "repair_estimate_min", "repair_estimate_max",
+			"bit_payment_enabled", "bit_phone_number", "bit_business_name", "auto_send_payment_sms",
+			"created_at", "updated_at"},
+		data: [][]driver.Value{
+			{int64(9), "Cool Air Ltd", "050-1111111", "hvac", "COOL-AIR-X7J2",
+				lat, lng, "1 Herzl St", 20.0,
+				"ChIJ123", "1 Herzl St, Tel Aviv", nil, nil,
+				visitFee, nil, nil,
+				true, "050-9999999", "Cool Air Ltd", false,
+				time.Now(), time.Now()},
+		},
+	}
+
+	db := newTestDB(t, "find-by-id-success", rows)
+	defer db.Close()
+
+	repo := NewOrganizationRepository(db)
+	org, err := repo.FindByID(9)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if org.ID != 9 {
+		t.Errorf("expected ID 9, got %d", org.ID)
+	}
+	if org.Name != "Cool Air Ltd" {
+		t.Errorf("expected name 'Cool Air Ltd', got %q", org.Name)
+	}
+	if org.BitPaymentEnabled != true {
+		t.Errorf("expected BitPaymentEnabled true, got %v", org.BitPaymentEnabled)
+	}
+	if org.BitPhoneNumber != "050-9999999" {
+		t.Errorf("expected BitPhoneNumber '050-9999999', got %q", org.BitPhoneNumber)
+	}
+	if org.BitBusinessName != "Cool Air Ltd" {
+		t.Errorf("expected BitBusinessName 'Cool Air Ltd', got %q", org.BitBusinessName)
+	}
+	if org.AutoSendPaymentSMS != false {
+		t.Errorf("expected AutoSendPaymentSMS false, got %v", org.AutoSendPaymentSMS)
+	}
+	if org.VisitFee == nil || *org.VisitFee != visitFee {
+		t.Errorf("expected VisitFee %v, got %v", visitFee, org.VisitFee)
+	}
+}
+
+func TestFindByID_PaymentSettingsDefaultToZeroValues(t *testing.T) {
+	// An organization that never configured Bit payment: bit_payment_enabled=false,
+	// bit_phone_number/bit_business_name empty, auto_send_payment_sms=false.
+	rows := &fakeRows{
+		cols: []string{"id", "name", "phone", "industry", "company_code",
+			"latitude", "longitude", "address", "service_radius_km",
+			"google_place_id", "formatted_address", "address_components", "geocoded_at",
+			"visit_fee", "repair_estimate_min", "repair_estimate_max",
+			"bit_payment_enabled", "bit_phone_number", "bit_business_name", "auto_send_payment_sms",
+			"created_at", "updated_at"},
+		data: [][]driver.Value{
+			{int64(1), "New Org", "050-0000000", "hvac", "NEW-ORG-A1B2",
+				nil, nil, nil, 20.0,
+				nil, nil, nil, nil,
+				nil, nil, nil,
+				false, "", "", false,
+				time.Now(), time.Now()},
+		},
+	}
+
+	db := newTestDB(t, "find-by-id-defaults", rows)
+	defer db.Close()
+
+	repo := NewOrganizationRepository(db)
+	org, err := repo.FindByID(1)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if org.BitPaymentEnabled {
+		t.Error("expected BitPaymentEnabled false by default")
+	}
+	if org.BitPhoneNumber != "" {
+		t.Errorf("expected empty BitPhoneNumber, got %q", org.BitPhoneNumber)
+	}
+	if org.BitBusinessName != "" {
+		t.Errorf("expected empty BitBusinessName, got %q", org.BitBusinessName)
+	}
+	if org.AutoSendPaymentSMS {
+		t.Error("expected AutoSendPaymentSMS false by default")
+	}
+}
+
+func TestFindByID_NotFound_ReturnsOrganizationNotFoundError(t *testing.T) {
+	rows := &fakeRows{
+		cols: []string{"id", "name", "phone", "industry", "company_code",
+			"latitude", "longitude", "address", "service_radius_km",
+			"google_place_id", "formatted_address", "address_components", "geocoded_at",
+			"visit_fee", "repair_estimate_min", "repair_estimate_max",
+			"bit_payment_enabled", "bit_phone_number", "bit_business_name", "auto_send_payment_sms",
+			"created_at", "updated_at"},
+		data: [][]driver.Value{}, // no rows -> sql.ErrNoRows
+	}
+
+	db := newTestDB(t, "find-by-id-not-found", rows)
+	defer db.Close()
+
+	repo := NewOrganizationRepository(db)
+	org, err := repo.FindByID(999)
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	if org != nil {
+		t.Errorf("expected nil organization on not-found, got %+v", org)
+	}
+	if err.Error() != "organization not found" {
+		t.Errorf("expected 'organization not found', got %q", err.Error())
+	}
+}
+
+// -----------------------------------------------------------------------
+// UpdatePaymentSettings tests
+// -----------------------------------------------------------------------
+
+func TestUpdatePaymentSettings_ExecCalledWithExpectedArgs(t *testing.T) {
+	driverName := "capturingdb-payment-settings-1"
+	var capturedArgs []driver.NamedValue
+
+	sql.Register(driverName, &capturingDriver{
+		onExec: func(_ string, args []driver.NamedValue) {
+			capturedArgs = args
+		},
+	})
+
+	db, err := sql.Open(driverName, "test-payment-settings")
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewOrganizationRepository(db)
+	if err := repo.UpdatePaymentSettings(context.Background(), 42, true, "050-1234567", "Cool Air Ltd", true); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	// args: enabled=$1, phone=$2, businessName=$3, autoSend=$4, updated_at=$5, orgID=$6
+	if len(capturedArgs) < 6 {
+		t.Fatalf("expected at least 6 args, got %d", len(capturedArgs))
+	}
+	if capturedArgs[0].Value != true {
+		t.Errorf("expected enabled=true, got %v", capturedArgs[0].Value)
+	}
+	if capturedArgs[1].Value != "050-1234567" {
+		t.Errorf("expected phone '050-1234567', got %v", capturedArgs[1].Value)
+	}
+	if capturedArgs[2].Value != "Cool Air Ltd" {
+		t.Errorf("expected businessName 'Cool Air Ltd', got %v", capturedArgs[2].Value)
+	}
+	if capturedArgs[3].Value != true {
+		t.Errorf("expected autoSend=true, got %v", capturedArgs[3].Value)
+	}
+	if capturedArgs[5].Value != int64(42) {
+		t.Errorf("expected orgID 42, got %v", capturedArgs[5].Value)
+	}
+}
+
+func TestUpdatePaymentSettings_DisablingClearsFlags(t *testing.T) {
+	driverName := "capturingdb-payment-settings-2"
+	var capturedArgs []driver.NamedValue
+
+	sql.Register(driverName, &capturingDriver{
+		onExec: func(_ string, args []driver.NamedValue) {
+			capturedArgs = args
+		},
+	})
+
+	db, err := sql.Open(driverName, "test-payment-settings-disable")
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewOrganizationRepository(db)
+	if err := repo.UpdatePaymentSettings(context.Background(), 5, false, "", "", false); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if capturedArgs[0].Value != false {
+		t.Errorf("expected enabled=false, got %v", capturedArgs[0].Value)
+	}
+	if capturedArgs[3].Value != false {
+		t.Errorf("expected autoSend=false, got %v", capturedArgs[3].Value)
+	}
+}
+
+func TestUpdatePaymentSettings_ExecError_Propagates(t *testing.T) {
+	// capturingConn.Exec always succeeds in this file's fake driver; use the
+	// resultDriver from payment_notification_repository_test.go (same package)
+	// which supports injecting an exec error.
+	sentinel := errors.New("db write failed")
+	db := newResultDB(t, &resultDriver{execErr: sentinel})
+
+	repo := NewOrganizationRepository(db)
+	err := repo.UpdatePaymentSettings(context.Background(), 5, true, "050-1234567", "Biz", true)
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
 }
 
 // -----------------------------------------------------------------------

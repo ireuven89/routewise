@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { jobsAPI, customersAPI, workersAPI } from '../api/client';
+import { jobsAPI, customersAPI, workersAPI, paymentAPI } from '../api/client';
 import Layout from '../components/Layout';
 import { format } from 'date-fns';
 import { useLanguage } from '../context/LanguageContext';
@@ -306,6 +306,8 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
                         </button>
                     )}
 
+                    <PaymentBadge job={job} />
+
                     <button
                         onClick={onEdit}
                         className="text-xs font-medium text-[#1e3a5f] hover:opacity-70 transition-opacity ml-1"
@@ -321,6 +323,92 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
                 </div>
             </div>
         </li>
+    );
+};
+
+// ─── PaymentBadge ─────────────────────────────────────────────────────────────
+const PaymentBadge = ({ job }) => {
+    const { t } = useLanguage();
+    const [notification, setNotification] = useState(null);
+    const [loaded, setLoaded] = useState(false);
+    const [busy, setBusy] = useState(false);
+
+    const eligible = job.status === 'completed' && job.price;
+
+    useEffect(() => {
+        if (!eligible) return;
+        let cancelled = false;
+        paymentAPI.getNotifications(job.id)
+            .then(res => {
+                if (cancelled) return;
+                const list = res.data || [];
+                setNotification(list[0] || null);
+                setLoaded(true);
+            })
+            .catch(() => setLoaded(true));
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [job.id, job.status, job.price]);
+
+    if (!eligible || !loaded) return null;
+
+    const handleSend = async () => {
+        setBusy(true);
+        try {
+            const res = await paymentAPI.sendRequest(job.id);
+            setNotification(res.data);
+        } catch (error) {
+            alert(error.response?.data?.error || t('jobs.paymentSendFailed'));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const handleMarkPaid = async () => {
+        setBusy(true);
+        try {
+            await paymentAPI.markPaid(notification.id);
+            setNotification({ ...notification, payment_status: 'paid' });
+        } catch (error) {
+            alert(error.response?.data?.error || t('jobs.markPaidFailed'));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    if (!notification || notification.payment_status === 'send_failed') {
+        return (
+            <button
+                onClick={handleSend}
+                disabled={busy}
+                className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded-lg font-semibold transition-colors disabled:opacity-50"
+            >
+                {t('jobs.sendPaymentRequest')}
+            </button>
+        );
+    }
+
+    if (notification.payment_status === 'paid') {
+        return (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
+                {t('jobs.paymentPaid')}
+            </span>
+        );
+    }
+
+    return (
+        <>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">
+                {t('jobs.paymentSent')}
+            </span>
+            <button
+                onClick={handleMarkPaid}
+                disabled={busy}
+                className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1 rounded-lg font-semibold transition-colors disabled:opacity-50"
+            >
+                {t('jobs.markPaid')}
+            </button>
+        </>
     );
 };
 

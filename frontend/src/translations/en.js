@@ -223,6 +223,12 @@ const en = {
         cancel: 'Cancel',
         updateJob: 'Update Job',
         createJobBtn: 'Create Job',
+        sendPaymentRequest: 'Request Payment',
+        paymentSent: 'Payment requested',
+        paymentPaid: 'Paid',
+        markPaid: 'Mark as Paid',
+        paymentSendFailed: 'Failed to send payment request',
+        markPaidFailed: 'Failed to mark as paid',
     },
 
     // ─── Service Call ─────────────────────────────────────────────────────────
@@ -318,6 +324,14 @@ const en = {
             repairMin: 'Repair Estimate Minimum',
             repairMax: 'Repair Estimate Maximum',
             save: 'Save Pricing',
+        },
+        payment: {
+            title: 'Bit Payment Collection',
+            enable: 'Enable Bit payment requests',
+            phoneNumber: 'Bit phone number',
+            businessName: 'Business name shown to customers',
+            autoSend: 'Automatically send when a job is marked completed',
+            save: 'Save Payment Settings',
         },
     },
 
