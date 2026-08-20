@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -14,8 +13,6 @@ import (
 	"github.com/ireuven89/routewise/internal/models"
 	"github.com/ireuven89/routewise/internal/repository"
 	"github.com/ireuven89/routewise/pkg/utils"
-	"github.com/twilio/twilio-go"
-	api "github.com/twilio/twilio-go/rest/api/v2010"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -26,7 +23,6 @@ type AuthService interface {
 	RequestWorkerOTP(phone, companyCode string) error
 	VerifyWorkerOTP(phone, companyCode, code string) (*models.Worker, string, error)
 	FindByEmail(email string) (*models.OrganizationUser, error)
-	sendSMS(phone, code string) error
 }
 
 type AuthServiceImpl struct {
@@ -34,16 +30,16 @@ type AuthServiceImpl struct {
 	workerRepo           *repository.WorkerRepository
 	organizationUserRepo *repository.OrganizationUserRepository
 	orgRepo              *repository.OrganizationRepository
-	twilioClient         *twilio.RestClient
+	notifier             NotificationService
 }
 
-func NewAuthService(workerRepository *repository.WorkerRepository, otpRepository *repository.OTPRepository, userRepository *repository.OrganizationUserRepository, orgRepository *repository.OrganizationRepository) AuthService {
+func NewAuthService(workerRepository *repository.WorkerRepository, otpRepository *repository.OTPRepository, userRepository *repository.OrganizationUserRepository, orgRepository *repository.OrganizationRepository, notifier NotificationService) AuthService {
 	return &AuthServiceImpl{
 		workerRepo:           workerRepository,
 		organizationUserRepo: userRepository,
 		orgRepo:              orgRepository,
 		otpRepo:              otpRepository,
-		twilioClient:         twilio.NewRestClientWithParams(twilio.ClientParams{Username: os.Getenv("TWILIO_SID"), Password: os.Getenv("TWILIO_AUTH_TOKEN")}),
+		notifier:             notifier,
 	}
 }
 
@@ -192,7 +188,7 @@ func (s *AuthServiceImpl) RequestWorkerOTP(phone, companyCode string) error {
 	}
 
 	// 4. Send SMS
-	err = s.sendSMS(phone, otpCode)
+	err = s.notifier.SendSMS(phone, fmt.Sprintf("Your RouteWise code is: %s", otpCode))
 	if err != nil {
 		return errors.New("failed to send SMS")
 	}
@@ -239,17 +235,6 @@ func (s *AuthServiceImpl) VerifyWorkerOTP(phone, companyCode, otpCode string) (*
 func (s *AuthServiceImpl) generateOTP() string {
 	rand.Seed(time.Now().UnixNano())
 	return fmt.Sprintf("%06d", rand.Intn(1000000))
-}
-
-func (s *AuthServiceImpl) sendSMS(phone, code string) error {
-	params := &api.CreateMessageParams{}
-	params.SetTo(phone)
-	params.SetFrom(os.Getenv("TWILIO_PHONE_NUMBER"))
-	params.SetBody(fmt.Sprintf("Your RouteWise code is: %s", code))
-
-	_, err := s.twilioClient.Api.CreateMessage(params)
-
-	return err
 }
 
 func (s *AuthServiceImpl) generateUuid() (string, error) {

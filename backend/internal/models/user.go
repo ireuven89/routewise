@@ -8,11 +8,11 @@ import (
 
 // Organization represents a company using the system
 type Organization struct {
-	ID          uint      `json:"id"`
-	Name        string    `json:"name"`
-	CompanyCode string    `json:"company_code"`
-	Phone       string    `json:"phone"`
-	Industry    string    `json:"industry"`
+	ID          uint   `json:"id"`
+	Name        string `json:"name"`
+	CompanyCode string `json:"company_code"`
+	Phone       string `json:"phone"`
+	Industry    string `json:"industry"`
 
 	// Service area
 	Latitude          *float64          `json:"latitude,omitempty"`
@@ -28,6 +28,12 @@ type Organization struct {
 	VisitFee          *float64 `json:"visit_fee,omitempty"`
 	RepairEstimateMin *float64 `json:"repair_estimate_min,omitempty"`
 	RepairEstimateMax *float64 `json:"repair_estimate_max,omitempty"`
+
+	// Bit payment collection
+	BitPaymentEnabled  bool   `json:"bit_payment_enabled"`
+	BitPhoneNumber     string `json:"bit_phone_number,omitempty"`
+	BitBusinessName    string `json:"bit_business_name,omitempty"`
+	AutoSendPaymentSMS bool   `json:"auto_send_payment_sms"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

@@ -35,11 +35,12 @@ type JobService interface {
 }
 
 type JobSvc struct {
-	repo *repository.JobRepository
+	repo       *repository.JobRepository
+	paymentSvc *PaymentService
 }
 
-func NewJobService(repo *repository.JobRepository) *JobSvc {
-	return &JobSvc{repo: repo}
+func NewJobService(repo *repository.JobRepository, paymentSvc *PaymentService) *JobSvc {
+	return &JobSvc{repo: repo, paymentSvc: paymentSvc}
 }
 
 type CreateJobInput struct {
@@ -136,9 +137,9 @@ func (s *JobSvc) Update(id, organizationID uint, input UpdateJobInput) (*models.
 		job.DurationMinutes = input.DurationMinutes
 	}
 	job.Price = input.Price
-	if input.Status != "" {
-		job.Status = models.JobStatus(input.Status)
-	}
+	// Status changes must go exclusively through UpdateStatus (which validates against
+	// validJobStatuses and fires the payment-completion hook) — input.Status is
+	// intentionally ignored here to prevent a validation/hook bypass.
 	if input.Metadata != nil {
 		job.Metadata = input.Metadata
 	}
@@ -158,7 +159,13 @@ func (s *JobSvc) UpdateStatus(id, organizationID uint, status string) error {
 	if !validJobStatuses[jobStatus] {
 		return ErrInvalidStatus
 	}
-	return s.repo.UpdateStatus(id, organizationID, jobStatus)
+	if err := s.repo.UpdateStatus(id, organizationID, jobStatus); err != nil {
+		return err
+	}
+	if jobStatus == models.StatusCompleted && s.paymentSvc != nil {
+		s.paymentSvc.TryAutoSendOnCompletion(context.Background(), organizationID, id)
+	}
+	return nil
 }
 
 func (s *JobSvc) Delete(id, organizationID uint) error {

@@ -73,6 +73,13 @@ func SetupRoutes(router *gin.Engine, h handlers.Handlers) {
 			protected.PUT("/organization/service-area", h.Provider.UpdateServiceArea)
 			protected.PUT("/organization/service-offer", h.Provider.UpdateServiceOffer)
 
+			// Payment collection (Bit)
+			protected.POST("/jobs/:id/payment-requests", h.Payment.SendPaymentRequest)
+			protected.GET("/jobs/:id/payment-notifications", h.Payment.GetPaymentNotifications)
+			protected.PATCH("/payment-notifications/:id/paid", middleware.RequireOwnerOrAdmin(), h.Payment.MarkPaid)
+			protected.GET("/organization/payment-settings", h.Payment.GetPaymentSettings)
+			protected.PUT("/organization/payment-settings", middleware.RequireOwnerOrAdmin(), h.Payment.UpdatePaymentSettings)
+
 			// Dashboard stats
 			protected.GET("/dashboard/stats", h.Dashboard.GetStats)
 		}

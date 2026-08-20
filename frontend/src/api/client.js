@@ -110,4 +110,13 @@ export const dashboardAPI = {
     getStats: () => apiClient.get('/api/v1/dashboard/stats'),
 };
 
+// Payment collection (Bit) API
+export const paymentAPI = {
+    sendRequest: (jobId) => apiClient.post(`/api/v1/jobs/${jobId}/payment-requests`),
+    getNotifications: (jobId) => apiClient.get(`/api/v1/jobs/${jobId}/payment-notifications`),
+    markPaid: (notificationId) => apiClient.patch(`/api/v1/payment-notifications/${notificationId}/paid`),
+    getSettings: () => apiClient.get('/api/v1/organization/payment-settings'),
+    updateSettings: (data) => apiClient.put('/api/v1/organization/payment-settings', data),
+};
+
 export default apiClient;

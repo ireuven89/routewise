@@ -224,6 +224,12 @@ const he = {
         cancel: 'ביטול',
         updateJob: 'עדכון עבודה',
         createJobBtn: 'יצירת עבודה',
+        sendPaymentRequest: 'בקשת תשלום',
+        paymentSent: 'בקשת תשלום נשלחה',
+        paymentPaid: 'שולם',
+        markPaid: 'סמנו כשולם',
+        paymentSendFailed: 'נכשלה שליחת בקשת התשלום',
+        markPaidFailed: 'נכשל סימון כשולם',
     },
 
     // ─── Service Call ─────────────────────────────────────────────────────────
@@ -319,6 +325,14 @@ const he = {
             repairMin: 'הערכת תיקון מינימום',
             repairMax: 'הערכת תיקון מקסימום',
             save: 'שמירת מחירים',
+        },
+        payment: {
+            title: 'גביית תשלום ב-Bit',
+            enable: 'הפעלת בקשות תשלום ב-Bit',
+            phoneNumber: 'מספר טלפון ל-Bit',
+            businessName: 'שם העסק המוצג ללקוחות',
+            autoSend: 'שליחה אוטומטית עם סימון עבודה כהושלמה',
+            save: 'שמירת הגדרות תשלום',
         },
     },
 
