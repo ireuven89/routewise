@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 
 	_ "github.com/lib/pq"
 )
@@ -54,7 +56,7 @@ func runMigrations(db *sql.DB) error {
 		return fmt.Errorf("failed to read migrations: %w", err)
 	}
 
-	sort.Strings(files)
+	sortMigrations(files)
 
 	log.Println("Running database migrations...")
 
@@ -112,4 +114,30 @@ func runMigrations(db *sql.DB) error {
 
 	log.Println("✅ Migrations completed successfully!")
 	return nil
+}
+
+var migrationNumber = regexp.MustCompile(`^(\d+)_`)
+
+// sortMigrations orders migration files by their numeric prefix (001, 002, ..., 009, 0010,
+// 0011, ...). A plain string sort puts 0010-0014 before 001_init_schema.sql, which breaks
+// every fresh database. Files without a numeric prefix go last, in name order.
+func sortMigrations(files []string) {
+	number := func(path string) int {
+		m := migrationNumber.FindStringSubmatch(filepath.Base(path))
+		if m == nil {
+			return int(^uint(0) >> 1)
+		}
+		n, err := strconv.Atoi(m[1])
+		if err != nil {
+			return int(^uint(0) >> 1)
+		}
+		return n
+	}
+	sort.SliceStable(files, func(i, j int) bool {
+		ni, nj := number(files[i]), number(files[j])
+		if ni != nj {
+			return ni < nj
+		}
+		return filepath.Base(files[i]) < filepath.Base(files[j])
+	})
 }
