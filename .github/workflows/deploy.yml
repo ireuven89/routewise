@@ -9,12 +9,17 @@ on:
   workflow_dispatch:  # Allows manual trigger
 
 jobs:
+  # Deploy only if the full CI suite passes on the pushed commit.
+  tests:
+    uses: ./.github/workflows/ci.yml
+
   deploy:
+    needs: tests
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Deploy to EC2
         env:
