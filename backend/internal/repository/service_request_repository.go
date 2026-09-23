@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/ireuven89/routewise/internal/models"
 )
@@ -16,11 +18,23 @@ var (
 )
 
 type ServiceRequestRepository struct {
-	db *sql.DB
+	db           *sql.DB
+	customerRepo *CustomerRepository
+	jobRepo      *JobRepository
 }
 
-func NewServiceRequestRepository(db *sql.DB) *ServiceRequestRepository {
-	return &ServiceRequestRepository{db: db}
+func NewServiceRequestRepository(db *sql.DB, customerRepo *CustomerRepository, jobRepo *JobRepository) *ServiceRequestRepository {
+	return &ServiceRequestRepository{db: db, customerRepo: customerRepo, jobRepo: jobRepo}
+}
+
+// AwardResult is what AwardBid hands back to the service layer: who won/lost (for
+// notifications) and the customer/job it created in the winning organization's account.
+type AwardResult struct {
+	WinnerOrgID     uint
+	LoserOrgIDs     []uint
+	CustomerID      uint
+	CustomerCreated bool
+	JobID           uint
 }
 
 // MatchedOrg is the fan-out target view of an organization matched to a new service request.
@@ -275,79 +289,138 @@ func (r *ServiceRequestRepository) ListBidsForRequest(ctx context.Context, reque
 	return bids, rows.Err()
 }
 
-// AwardBid atomically marks requestID awarded with bidID as the winner, marks that bid
-// awarded, and rejects every other still-submitted bid on the request, returning the winner
-// and loser organization IDs so the service layer can fire notifications without extra
-// queries.
-func (r *ServiceRequestRepository) AwardBid(ctx context.Context, requestID, bidID uint) (winnerOrgID uint, loserOrgIDs []uint, err error) {
+// AwardBid atomically marks sr awarded with bidID as the winner, marks that bid awarded,
+// rejects every other still-submitted bid, and hands the lead over to the winning
+// organization: its customer (matched by phone, or created from the request) and a
+// scheduled job priced at the winning bid. Everything commits together, so an award never
+// exists without the job the winner is expected to show up for.
+func (r *ServiceRequestRepository) AwardBid(ctx context.Context, sr *models.ServiceRequest, bidID uint) (*AwardResult, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 	defer tx.Rollback()
 
 	var status string
-	err = tx.QueryRowContext(ctx, `SELECT status FROM service_requests WHERE id = $1 FOR UPDATE`, requestID).Scan(&status)
+	err = tx.QueryRowContext(ctx, `SELECT status FROM service_requests WHERE id = $1 FOR UPDATE`, sr.ID).Scan(&status)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, nil, ErrServiceRequestNotFound
+		return nil, ErrServiceRequestNotFound
 	}
 	if err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 	if status != string(models.ServiceRequestStatusOpen) {
-		return 0, nil, ErrServiceRequestNotOpen
+		return nil, ErrServiceRequestNotOpen
 	}
 
+	res := &AwardResult{}
+	var price float64
+	var eta sql.NullInt64
 	err = tx.QueryRowContext(ctx,
-		`SELECT organization_id FROM service_request_bids WHERE id = $1 AND service_request_id = $2`,
-		bidID, requestID,
-	).Scan(&winnerOrgID)
+		`SELECT organization_id, price, eta_minutes FROM service_request_bids WHERE id = $1 AND service_request_id = $2`,
+		bidID, sr.ID,
+	).Scan(&res.WinnerOrgID, &price, &eta)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, nil, ErrBidNotFound
+		return nil, ErrBidNotFound
 	}
 	if err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 
 	if _, err = tx.ExecContext(ctx,
 		`UPDATE service_requests SET status = 'awarded', awarded_bid_id = $1, updated_at = NOW() WHERE id = $2`,
-		bidID, requestID,
+		bidID, sr.ID,
 	); err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 
 	if _, err = tx.ExecContext(ctx,
 		`UPDATE service_request_bids SET status = 'awarded', updated_at = NOW() WHERE id = $1`, bidID,
 	); err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 
 	rows, err := tx.QueryContext(ctx,
 		`UPDATE service_request_bids SET status = 'rejected', updated_at = NOW()
 		 WHERE service_request_id = $1 AND id <> $2 AND status = 'submitted'
 		 RETURNING organization_id`,
-		requestID, bidID,
+		sr.ID, bidID,
 	)
 	if err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 	for rows.Next() {
 		var loserID uint
 		if err = rows.Scan(&loserID); err != nil {
 			rows.Close()
-			return 0, nil, err
+			return nil, err
 		}
-		loserOrgIDs = append(loserOrgIDs, loserID)
+		res.LoserOrgIDs = append(res.LoserOrgIDs, loserID)
 	}
 	if cerr := rows.Close(); cerr != nil {
-		return 0, nil, cerr
+		return nil, cerr
 	}
 	if err = rows.Err(); err != nil {
-		return 0, nil, err
+		return nil, err
+	}
+
+	customer, err := r.customerRepo.FindByPhoneTx(ctx, tx, res.WinnerOrgID, sr.CustomerPhone)
+	if errors.Is(err, CustomerNotFoundError) {
+		lat, lng := sr.Latitude, sr.Longitude
+		customer = &models.Customer{
+			OrganizationID: res.WinnerOrgID,
+			Name:           sr.CustomerName,
+			Phone:          sr.CustomerPhone,
+			Address:        sr.Address,
+			Latitude:       &lat,
+			Longitude:      &lng,
+		}
+		if err = r.customerRepo.CreateTx(ctx, tx, customer); err != nil {
+			return nil, fmt.Errorf("could not create customer: %w", err)
+		}
+		res.CustomerCreated = true
+	} else if err != nil {
+		return nil, fmt.Errorf("could not find customer: %w", err)
+	}
+	res.CustomerID = customer.ID
+
+	job := &models.Job{
+		OrganizationID:  res.WinnerOrgID,
+		CustomerID:      customer.ID,
+		Title:           fmt.Sprintf("%s request", sr.ServiceType),
+		Description:     sr.Description,
+		Status:          models.StatusScheduled,
+		ScheduledAt:     awardedJobScheduledAt(sr, eta, time.Now().UTC()),
+		DurationMinutes: 60,
+		Price:           &price,
+		Metadata:        models.JSON{"source": "service_request", "service_request_id": sr.ID},
+	}
+	if _, err = r.jobRepo.CreateTx(ctx, tx, job); err != nil {
+		return nil, fmt.Errorf("could not create job: %w", err)
+	}
+	res.JobID = job.ID
+
+	if _, err = tx.ExecContext(ctx,
+		`UPDATE service_requests SET job_id = $1 WHERE id = $2`, job.ID, sr.ID,
+	); err != nil {
+		return nil, err
 	}
 
 	if err = tx.Commit(); err != nil {
-		return 0, nil, err
+		return nil, err
 	}
-	return winnerOrgID, loserOrgIDs, nil
+	return res, nil
+}
+
+// awardedJobScheduledAt uses the customer's preferred time when they gave one, otherwise
+// the winner's promised ETA from now, otherwise now. now must be UTC: scheduled_at is a
+// timestamp without time zone holding UTC wall time, like the rest of the app's jobs.
+func awardedJobScheduledAt(sr *models.ServiceRequest, eta sql.NullInt64, now time.Time) time.Time {
+	if sr.PreferredTime != nil {
+		return *sr.PreferredTime
+	}
+	if eta.Valid {
+		return now.Add(time.Duration(eta.Int64) * time.Minute)
+	}
+	return now
 }

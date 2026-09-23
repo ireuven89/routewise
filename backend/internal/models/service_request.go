@@ -46,8 +46,8 @@ type ServiceRequest struct {
 	AccessToken   string               `json:"-"` // never serialized except once, explicitly, at creation
 	ServiceType   string               `json:"service_type"`
 	Description   string               `json:"description"`
-	CustomerName  string               `json:"customer_name"`
-	CustomerPhone string               `json:"customer_phone"`
+	CustomerName  string               `json:"customer_name,omitempty"`  // blanked in org-facing lead listings
+	CustomerPhone string               `json:"customer_phone,omitempty"` // blanked in org-facing lead listings
 	Latitude      float64              `json:"latitude"`
 	Longitude     float64              `json:"longitude"`
 	Address       string               `json:"address"`

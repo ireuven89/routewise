@@ -1,4 +1,4 @@
--- Migration: Add Smart Dispatching (broadcast bidding)
+-- Migration: Add Service Requests Bidding (broadcast bidding)
 -- Description: Adds service_requests (customer job posts from the public /find-service
 --              page), service_request_bids (per-org bids on a request), and
 --              service_request_notifications (audit log of WhatsApp/SMS sends). Replaces
@@ -57,6 +57,12 @@ ALTER TABLE service_requests
     ADD CONSTRAINT fk_service_requests_awarded_bid
     FOREIGN KEY (awarded_bid_id) REFERENCES service_request_bids(id) ON DELETE SET NULL;
 
+-- The job created in the winning organization's account when a bid is awarded. Added via
+-- ALTER (not in the CREATE TABLE above) so re-running this migration on a database that
+-- already has service_requests still picks it up.
+ALTER TABLE service_requests
+    ADD COLUMN IF NOT EXISTS job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL;
+
 -- Audit log of WhatsApp (to orgs) and SMS (to the customer) sends for this feature: new-lead
 -- alerts, and award/rejection notices. organization_id is nullable because customer-facing
 -- rows (tracking link, award confirmation) have no organization recipient.
@@ -86,7 +92,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_service_request_notifications_unique_lead
 COMMENT ON TABLE service_requests IS 'Customer job posts from the public find-service broadcast bidding flow';
 COMMENT ON COLUMN service_requests.access_token IS 'Unguessable token letting an anonymous customer revisit /find-service/requests/:token; this IS the customer''s identity for the request, there is no login';
 COMMENT ON COLUMN service_requests.status IS 'open, awarded, cancelled';
+COMMENT ON COLUMN service_requests.job_id IS 'Job created in the winning organization''s account on award';
 COMMENT ON TABLE service_request_bids IS 'Per-organization bids on a broadcast service request; one bid per org per request, enforced by the unique constraint';
 COMMENT ON COLUMN service_request_bids.status IS 'submitted, awarded, rejected';
-COMMENT ON TABLE service_request_notifications IS 'Audit log of WhatsApp (org-facing) / SMS (customer-facing) sends for smart dispatching';
+COMMENT ON TABLE service_request_notifications IS 'Audit log of WhatsApp (org-facing) / SMS (customer-facing) sends for service requests bidding';
 COMMENT ON COLUMN service_request_notifications.kind IS 'new_lead (whatsapp, org), bid_awarded (whatsapp, org), bid_rejected (whatsapp, org), tracking_link (sms, customer), award_confirmation (sms, customer)';

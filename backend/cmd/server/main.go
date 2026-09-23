@@ -53,7 +53,7 @@ func main() {
 	customerRepo := repository.NewCustomerRepository(db)
 	jobRepo := repository.NewJobRepository(db, customerRepo)
 	orgRepo := repository.NewOrganizationRepository(db)
-	serviceRequestRepo := repository.NewServiceRequestRepository(db)
+	serviceRequestRepo := repository.NewServiceRequestRepository(db, customerRepo, jobRepo)
 	serviceRequestNotificationRepo := repository.NewServiceRequestNotificationRepository(db)
 
 	//initialize services

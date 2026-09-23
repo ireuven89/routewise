@@ -27,7 +27,7 @@ func SetupRoutes(router *gin.Engine, h handlers.Handlers) {
 			public.GET("/providers", h.Provider.SearchProviders)
 			public.GET("/config/google-maps", h.Provider.GetPublicGoogleMapsConfig)
 
-			// Smart dispatching (broadcast bidding)
+			// service requests (broadcast bidding)
 			public.POST("/service-requests", h.ServiceRequest.Create)
 			public.GET("/service-requests/:token", h.ServiceRequest.GetByToken)
 			public.POST("/service-requests/:token/award", h.ServiceRequest.Award)

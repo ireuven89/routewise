@@ -36,6 +36,15 @@ func NewCustomerRepository(db *sql.DB) *CustomerRepository {
 	return &CustomerRepository{db: db}
 }
 
+// jsonbParam sends empty JSON as SQL NULL. lib/pq sends a nil []byte as an empty string,
+// which Postgres rejects for jsonb columns ("invalid input syntax for type json").
+func jsonbParam(b []byte) interface{} {
+	if len(b) == 0 {
+		return nil
+	}
+	return b
+}
+
 func (r *CustomerRepository) FindByPhoneTx(ctx context.Context, tx *sql.Tx, organizationID uint, phone string) (*models.Customer, error) {
 	q := `SELECT id, organization_id, name, email, phone, address 
 		  FROM customers
@@ -94,7 +103,7 @@ func (r *CustomerRepository) CreateTx(ctx context.Context, tx *sql.Tx, customer 
 		customer.Longitude,
 		customer.GooglePlaceID,
 		customer.FormattedAddress,
-		addressComponentsJSON,
+		jsonbParam(addressComponentsJSON),
 		customer.GeocodedAt,
 		customer.Notes,
 		now,
@@ -141,7 +150,7 @@ func (r *CustomerRepository) Create(customer *models.Customer) error {
 		customer.Longitude,
 		customer.GooglePlaceID,
 		customer.FormattedAddress,
-		addressComponentsJSON,
+		jsonbParam(addressComponentsJSON),
 		customer.GeocodedAt,
 		customer.Notes,
 		now,
@@ -381,7 +390,7 @@ func (r *CustomerRepository) Update(customer *models.Customer) error {
 		customer.Longitude,
 		customer.GooglePlaceID,
 		customer.FormattedAddress,
-		addressComponentsJSON,
+		jsonbParam(addressComponentsJSON),
 		customer.GeocodedAt,
 		customer.Notes,
 		time.Now(),

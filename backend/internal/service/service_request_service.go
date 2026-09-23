@@ -113,8 +113,18 @@ func (s *ServiceRequestService) GetByToken(ctx context.Context, token string) (*
 	return sr, bids, nil
 }
 
+// ListLeadsForOrg returns open leads with the customer's name and phone stripped: every
+// bidder sees these, and only the awarded org gets the contact details (see AwardBid).
 func (s *ServiceRequestService) ListLeadsForOrg(ctx context.Context, orgID uint) ([]*models.ServiceRequest, []*models.ServiceRequestBid, error) {
-	return s.requestRepo.FindOpenRequestsForOrg(ctx, orgID)
+	requests, bids, err := s.requestRepo.FindOpenRequestsForOrg(ctx, orgID)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, sr := range requests {
+		sr.CustomerName = ""
+		sr.CustomerPhone = ""
+	}
+	return requests, bids, nil
 }
 
 func (s *ServiceRequestService) SubmitBid(ctx context.Context, orgID, requestID uint, in SubmitBidInput) (*models.ServiceRequestBid, error) {
@@ -142,15 +152,16 @@ func (s *ServiceRequestService) SubmitBid(ctx context.Context, orgID, requestID 
 	return bid, nil
 }
 
-// AwardBid resolves the customer's token to a request, awards the chosen bid, and notifies
-// the winner, the losers, and the customer asynchronously.
+// AwardBid resolves the customer's token to a request, awards the chosen bid (which also
+// creates the customer and a scheduled job in the winner's account), and notifies the
+// winner, the losers, and the customer asynchronously.
 func (s *ServiceRequestService) AwardBid(ctx context.Context, token string, bidID uint) (*models.ServiceRequest, error) {
 	sr, err := s.requestRepo.FindByToken(ctx, token)
 	if err != nil {
 		return nil, err
 	}
 
-	winnerOrgID, loserOrgIDs, err := s.requestRepo.AwardBid(ctx, sr.ID, bidID)
+	award, err := s.requestRepo.AwardBid(ctx, sr, bidID)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +177,7 @@ func (s *ServiceRequestService) AwardBid(ctx context.Context, token string, bidI
 		return sr, nil
 	}
 
-	go s.notifyAwardOutcome(sr, bids, winnerOrgID, loserOrgIDs)
+	go s.notifyAwardOutcome(sr, bids, award.WinnerOrgID, award.LoserOrgIDs)
 
 	return sr, nil
 }
@@ -310,7 +321,7 @@ func buildNewLeadMessage(sr *models.ServiceRequest, org *repository.MatchedOrg) 
 
 func buildBidAwardedMessage(sr *models.ServiceRequest) string {
 	return fmt.Sprintf(
-		"You won the lead for %s at %s. Customer: %s, %s.",
+		"You won the lead for %s at %s. Customer: %s, %s. The job was added to your RouteWise schedule.",
 		sr.ServiceType, sr.Address, sr.CustomerName, sr.CustomerPhone,
 	)
 }
