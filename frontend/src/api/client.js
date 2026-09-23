@@ -89,9 +89,18 @@ export const providersAPI = {
         apiClient.get('/api/v1/public/providers', { params: { lat, lng, service_type: serviceType } }),
 };
 
-// Public service request API (no auth required)
+// Public smart-dispatching / service request API (no auth required)
 export const serviceRequestsAPI = {
     create: (data) => apiClient.post('/api/v1/public/service-requests', data),
+    getByToken: (token) => apiClient.get(`/api/v1/public/service-requests/${token}`),
+    awardBid: (token, bidId) =>
+        apiClient.post(`/api/v1/public/service-requests/${token}/award`, { bid_id: bidId }),
+};
+
+// Org-side leads/bids API (auth required)
+export const leadsAPI = {
+    getAll: () => apiClient.get('/api/v1/leads'),
+    upsertBid: (leadId, data) => apiClient.put(`/api/v1/leads/${leadId}/bid`, data),
 };
 
 // Public config API (no auth required)

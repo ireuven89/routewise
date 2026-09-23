@@ -8,6 +8,8 @@ import Jobs from "./pages/Jobs";
 import Customers from "./pages/Customers";
 import Workers from "./pages/Workers";
 import FindService from "./pages/FindService";
+import ServiceRequestTracking from "./pages/ServiceRequestTracking";
+import Leads from "./pages/Leads";
 import OrganizationSettings from "./pages/OrganizationSettings";
 import './rtl.css';
 import {LanguageProvider} from "./context/LanguageContext";
@@ -65,8 +67,21 @@ function App() {
                         }
                     />
 
+                    {/* Smart dispatching: org-side leads/bids */}
+                    <Route
+                        path="/leads"
+                        element={
+                            <PrivateRoute>
+                                <Leads />
+                            </PrivateRoute>
+                        }
+                    />
+
                     {/* Public customer discovery page */}
                     <Route path="/find-service" element={<FindService />} />
+
+                    {/* Public customer bid-tracking page (smart dispatching) */}
+                    <Route path="/find-service/requests/:token" element={<ServiceRequestTracking />} />
 
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
