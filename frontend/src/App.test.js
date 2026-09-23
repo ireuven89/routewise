@@ -1,8 +1,14 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+beforeEach(() => {
+  localStorage.clear();
+  localStorage.setItem('language', 'en');
+  window.history.pushState({}, '', '/');
+});
+
+test('redirects a signed-out visitor from / to the login page', async () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(await screen.findByText('Welcome back')).toBeInTheDocument();
+  expect(window.location.pathname).toBe('/login');
 });
