@@ -41,6 +41,14 @@ type seqState struct {
 	mu      sync.Mutex
 	results []seqResult
 	idx     int
+	calls   []seqCall
+}
+
+// seqCall records the SQL text and arguments of one consumed Query call, so tests can
+// assert what a multi-step method actually wrote.
+type seqCall struct {
+	query string
+	args  []driver.Value
 }
 
 // seqRegistry maps a DSN to the ordered list of results to hand back.
@@ -57,18 +65,23 @@ func (d *seqDriver) Open(name string) (driver.Conn, error) {
 
 type seqConn struct{ dsn string }
 
-func (c *seqConn) Prepare(query string) (driver.Stmt, error) { return &seqStmt{conn: c}, nil }
-func (c *seqConn) Close() error                              { return nil }
-func (c *seqConn) Begin() (driver.Tx, error)                 { return &fakeTx{}, nil }
+func (c *seqConn) Prepare(query string) (driver.Stmt, error) {
+	return &seqStmt{conn: c, query: query}, nil
+}
+func (c *seqConn) Close() error              { return nil }
+func (c *seqConn) Begin() (driver.Tx, error) { return &fakeTx{}, nil }
 
-type seqStmt struct{ conn *seqConn }
+type seqStmt struct {
+	conn  *seqConn
+	query string
+}
 
 func (s *seqStmt) Close() error  { return nil }
 func (s *seqStmt) NumInput() int { return -1 }
 func (s *seqStmt) Exec(_ []driver.Value) (driver.Result, error) {
 	return &fakeResult{}, nil
 }
-func (s *seqStmt) Query(_ []driver.Value) (driver.Rows, error) {
+func (s *seqStmt) Query(args []driver.Value) (driver.Rows, error) {
 	seqRegistryMu.Lock()
 	state := seqRegistry[s.conn.dsn]
 	seqRegistryMu.Unlock()
@@ -84,6 +97,7 @@ func (s *seqStmt) Query(_ []driver.Value) (driver.Rows, error) {
 	}
 	res := state.results[state.idx]
 	state.idx++
+	state.calls = append(state.calls, seqCall{query: s.query, args: args})
 	if res.err != nil {
 		return nil, res.err
 	}

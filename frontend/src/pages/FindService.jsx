@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FiMapPin, FiClock, FiSearch, FiPhone, FiCheckCircle, FiWind, FiDroplet, FiZap, FiSend, FiX } from 'react-icons/fi';
 import { FaGlobe } from 'react-icons/fa';
 import { providersAPI, publicConfigAPI, serviceRequestsAPI } from '../api/client';
@@ -27,7 +27,10 @@ const ProviderInitials = ({ name }) => {
     );
 };
 
-const ProviderCard = ({ provider, t, onRequest }) => (
+// Read-only preview card: browsing providers no longer sends a per-provider request (that
+// flow is replaced by the single job-post -> broadcast bidding flow below), it's just a
+// "who's nearby" preview before posting.
+const ProviderCard = ({ provider, t }) => (
     <div className="bg-white rounded-2xl shadow-md hover:shadow-lg transition-shadow p-6 border border-gray-100">
         <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-4 min-w-0">
@@ -45,28 +48,16 @@ const ProviderCard = ({ provider, t, onRequest }) => (
                     </span>
                 </div>
             </div>
-            <div className="flex flex-col gap-2 flex-shrink-0">
-                <a
-                    href={`tel:${provider.phone}`}
-                    className="flex items-center gap-2 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
-                    style={{ background: BRAND }}
-                    onMouseEnter={e => e.currentTarget.style.background = BRAND_LIGHT}
-                    onMouseLeave={e => e.currentTarget.style.background = BRAND}
-                >
-                    <FiPhone className="w-4 h-4" />
-                    {t('findService.call')}
-                </a>
-                <button
-                    onClick={() => onRequest(provider)}
-                    className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border-2 transition-colors"
-                    style={{ borderColor: BRAND, color: BRAND }}
-                    onMouseEnter={e => { e.currentTarget.style.background = BRAND; e.currentTarget.style.color = '#fff'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = BRAND; }}
-                >
-                    <FiSend className="w-4 h-4" />
-                    {t('findService.requestService')}
-                </button>
-            </div>
+            <a
+                href={`tel:${provider.phone}`}
+                className="flex items-center gap-2 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors flex-shrink-0"
+                style={{ background: BRAND }}
+                onMouseEnter={e => e.currentTarget.style.background = BRAND_LIGHT}
+                onMouseLeave={e => e.currentTarget.style.background = BRAND}
+            >
+                <FiPhone className="w-4 h-4" />
+                {t('findService.call')}
+            </a>
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
@@ -88,27 +79,29 @@ const ProviderCard = ({ provider, t, onRequest }) => (
     </div>
 );
 
-const RequestModal = ({ provider, prefillMessage, serviceType, requestedTime, location, t, isRTL, onClose }) => {
+// Posts the job as a broadcast request (not tied to any one provider) and, on success,
+// navigates to the customer's tracking page where bids will appear.
+const PostJobModal = ({ serviceType, description, requestedTime, location, address, t, isRTL, onClose }) => {
+    const navigate = useNavigate();
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
-    const [message, setMessage] = useState(prefillMessage || '');
-    const [status, setStatus] = useState(null); // null | 'loading' | 'success' | 'error'
+    const [status, setStatus] = useState(null); // null | 'loading' | 'error'
 
     const handleSubmit = async () => {
         if (!name.trim() || !phone.trim()) return;
         setStatus('loading');
         try {
-            await serviceRequestsAPI.create({
-                provider_id: provider.id,
+            const res = await serviceRequestsAPI.create({
+                service_type: serviceType,
+                description: description.trim(),
                 customer_name: name.trim(),
                 customer_phone: phone.trim(),
-                message: message.trim(),
-                service_type: serviceType,
-                requested_time: requestedTime || null,
-                customer_lat: location?.latitude || null,
-                customer_lng: location?.longitude || null,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                address,
+                preferred_time: requestedTime || null,
             });
-            setStatus('success');
+            navigate(`/find-service/requests/${res.data.access_token}`);
         } catch {
             setStatus('error');
         }
@@ -118,93 +111,64 @@ const RequestModal = ({ provider, prefillMessage, serviceType, requestedTime, lo
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir={isRTL ? 'rtl' : 'ltr'}>
             <div className="absolute inset-0 bg-black/50" onClick={status !== 'loading' ? onClose : undefined} />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-                {status === 'success' ? (
-                    <div className="text-center py-4">
-                        <FiCheckCircle className="w-14 h-14 text-green-500 mx-auto mb-3" />
-                        <h3 className="text-lg font-bold text-gray-900 mb-1">{t('findService.requestSent')}</h3>
-                        <p className="text-sm text-gray-500 mb-6">{provider.name} {t('findService.requestSentSub')}</p>
-                        <button
-                            onClick={onClose}
-                            className="w-full py-3 rounded-xl font-semibold text-white"
-                            style={{ background: BRAND }}
-                        >
-                            {t('findService.close')}
-                        </button>
+                <div className="flex items-start justify-between mb-4">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900">{t('findService.postJob')}</h3>
+                        <p className="text-sm text-gray-500">{t('findService.postJobSub')}</p>
                     </div>
-                ) : (
-                    <>
-                        <div className="flex items-start justify-between mb-4">
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900">{t('findService.requestService')}</h3>
-                                <p className="text-sm text-gray-500">{provider.name}</p>
-                            </div>
-                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
-                                <FiX className="w-5 h-5" />
-                            </button>
-                        </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
+                        <FiX className="w-5 h-5" />
+                    </button>
+                </div>
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
-                                    {t('findService.yourName')} *
-                                </label>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={e => setName(e.target.value)}
-                                    className="block w-full h-10 rounded-lg border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    placeholder={t('findService.namePlaceholder')}
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
-                                    {t('findService.yourPhone')} *
-                                </label>
-                                <input
-                                    type="tel"
-                                    value={phone}
-                                    onChange={e => setPhone(e.target.value)}
-                                    className="block w-full h-10 rounded-lg border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    placeholder="050-123-4567"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
-                                    {t('findService.problemLabel')}
-                                </label>
-                                <textarea
-                                    value={message}
-                                    onChange={e => setMessage(e.target.value)}
-                                    rows={3}
-                                    placeholder={t('findService.problemPlaceholder')}
-                                    className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                                />
-                            </div>
-                        </div>
+                <div className="space-y-4">
+                    <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                            {t('findService.yourName')} *
+                        </label>
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            className="block w-full h-10 rounded-lg border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder={t('findService.namePlaceholder')}
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                            {t('findService.yourPhone')} *
+                        </label>
+                        <input
+                            type="tel"
+                            value={phone}
+                            onChange={e => setPhone(e.target.value)}
+                            className="block w-full h-10 rounded-lg border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="050-123-4567"
+                        />
+                    </div>
+                </div>
 
-                        {status === 'error' && (
-                            <p className="text-sm text-red-500 mt-3">{t('findService.requestError')}</p>
-                        )}
-
-                        <div className="flex gap-3 mt-5">
-                            <button
-                                onClick={onClose}
-                                disabled={status === 'loading'}
-                                className="flex-1 py-3 rounded-xl font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                            >
-                                {t('findService.cancelRequest')}
-                            </button>
-                            <button
-                                onClick={handleSubmit}
-                                disabled={!name.trim() || !phone.trim() || status === 'loading'}
-                                className="flex-1 py-3 rounded-xl font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                style={{ background: BRAND }}
-                            >
-                                {status === 'loading' ? t('findService.sending') : t('findService.sendRequest')}
-                            </button>
-                        </div>
-                    </>
+                {status === 'error' && (
+                    <p className="text-sm text-red-500 mt-3">{t('findService.requestError')}</p>
                 )}
+
+                <div className="flex gap-3 mt-5">
+                    <button
+                        onClick={onClose}
+                        disabled={status === 'loading'}
+                        className="flex-1 py-3 rounded-xl font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    >
+                        {t('findService.cancelRequest')}
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={!name.trim() || !phone.trim() || status === 'loading'}
+                        className="flex-1 py-3 rounded-xl font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ background: BRAND }}
+                    >
+                        {status === 'loading' ? t('findService.sending') : t('findService.sendRequest')}
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -229,6 +193,7 @@ const FindService = () => {
 
     const [googleMapsApiKey, setGoogleMapsApiKey] = useState(null);
     const [location, setLocation] = useState(null);
+    const [address, setAddress] = useState('');
     const [requestedTime, setRequestedTime] = useState('');
     const [description, setDescription] = useState('');
     const [providers, setProviders] = useState([]);
@@ -236,7 +201,7 @@ const FindService = () => {
     const [searched, setSearched] = useState(false);
     const [error, setError] = useState('');
     const [serviceType, setServiceType] = useState('');
-    const [requestProvider, setRequestProvider] = useState(null);
+    const [showPostJob, setShowPostJob] = useState(false);
 
     useEffect(() => {
         publicConfigAPI.getGoogleMaps()
@@ -264,6 +229,13 @@ const FindService = () => {
             setLoading(false);
         }
     };
+
+    const handleLocationChange = (loc) => {
+        setLocation(loc);
+        setAddress(loc?.address || '');
+    };
+
+    const canPostJob = !!location && !!serviceType;
 
     return (
         <div className="min-h-screen bg-gray-50" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -304,7 +276,7 @@ const FindService = () => {
                     </p>
                 </div>
 
-                {/* Search card */}
+                {/* Job post / search card */}
                 <div className="max-w-3xl mx-auto px-6 pb-0">
                     <div className="bg-white rounded-2xl shadow-2xl p-6">
                         {/* Service Type Selector */}
@@ -338,7 +310,7 @@ const FindService = () => {
                                 {googleMapsApiKey ? (
                                     <GooglePlacesAutocomplete
                                         apiKey={googleMapsApiKey}
-                                        onChange={setLocation}
+                                        onChange={handleLocationChange}
                                         placeholder={t('findService.addressPlaceholder')}
                                     />
                                 ) : (
@@ -359,7 +331,7 @@ const FindService = () => {
                             </div>
                         </div>
                         {/* Problem description */}
-                        <div>
+                        <div className="mb-4">
                             <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                                 {t('findService.problemLabel')}
                             </label>
@@ -371,14 +343,23 @@ const FindService = () => {
                                 className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                             />
                         </div>
+
+                        <button
+                            onClick={() => setShowPostJob(true)}
+                            disabled={!canPostJob}
+                            className="w-full flex items-center justify-center gap-2 text-white font-bold py-3 rounded-xl text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{ background: canPostJob ? BRAND : '#94a3b8' }}
+                        >
+                            <FiSend className="w-4 h-4" />
+                            {t('findService.postJobBtn')}
+                        </button>
                         <button
                             onClick={handleSearch}
                             disabled={!location || !serviceType || loading}
-                            className="w-full flex items-center justify-center gap-2 text-white font-bold py-3 rounded-xl text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            style={{ background: location && !loading ? BRAND : undefined, backgroundColor: !location || loading ? '#94a3b8' : undefined }}
+                            className="w-full flex items-center justify-center gap-2 text-gray-600 font-semibold py-2.5 mt-2 rounded-xl text-sm transition-all border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <FiSearch className="w-4 h-4" />
-                            {loading ? t('findService.searching') : t('findService.searchBtn')}
+                            {loading ? t('findService.searching') : t('findService.previewBtn')}
                         </button>
                     </div>
                 </div>
@@ -391,7 +372,7 @@ const FindService = () => {
                 </div>
             </div>
 
-            {/* ── Results ── */}
+            {/* ── Results (optional preview) ── */}
             <main className="max-w-3xl mx-auto px-6 py-10">
                 {error && (
                     <p className="text-sm text-red-500 mb-4">{error}</p>
@@ -428,7 +409,7 @@ const FindService = () => {
                             </p>
                             <div className="space-y-4">
                                 {providers.map(provider => (
-                                    <ProviderCard key={provider.id} provider={provider} t={t} onRequest={setRequestProvider} />
+                                    <ProviderCard key={provider.id} provider={provider} t={t} />
                                 ))}
                             </div>
                         </>
@@ -441,17 +422,17 @@ const FindService = () => {
                 {t('footer.copyright')}
             </footer>
 
-            {/* ── Request Modal ── */}
-            {requestProvider && (
-                <RequestModal
-                    provider={requestProvider}
-                    prefillMessage={description}
+            {/* ── Post Job Modal ── */}
+            {showPostJob && (
+                <PostJobModal
                     serviceType={serviceType}
+                    description={description}
                     requestedTime={requestedTime}
                     location={location}
+                    address={address}
                     t={t}
                     isRTL={isRTL}
-                    onClose={() => setRequestProvider(null)}
+                    onClose={() => setShowPostJob(false)}
                 />
             )}
         </div>
