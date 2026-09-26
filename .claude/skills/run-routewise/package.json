@@ -1,0 +1,8 @@
+{
+  "name": "run-routewise-driver",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "^1.55.0"
+  }
+}
