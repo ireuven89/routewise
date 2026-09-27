@@ -2,9 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking, Platform, Alert } from 'react-native';
 import { jobs } from '../../services/api';
 import { colors, theme } from '../../theme/colors';
+import { useLanguage, useRTL } from '../../i18n/LanguageContext';
 
 const ProjectDetailScreen = ({ navigation, route }) => {
   const { jobId } = route.params;
+  const { t, locale } = useLanguage();
+  const rtl = useRTL();
+  const statusLabel = (status) => (status ? t(`status.${status.toLowerCase()}`) : t('status.pending'));
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -20,7 +24,7 @@ const ProjectDetailScreen = ({ navigation, route }) => {
       setJob(response);
     } catch (err) {
       console.error('Failed to load job details:', err);
-      setError('Failed to load job details');
+      setError(t('projectDetail.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -30,7 +34,7 @@ const ProjectDetailScreen = ({ navigation, route }) => {
     const { customer } = job;
 
     if (!customer) {
-      Alert.alert('Error', 'Customer information not available');
+      Alert.alert(t('common.error'), t('projectDetail.noCustomer'));
       return;
     }
 
@@ -52,7 +56,7 @@ const ProjectDetailScreen = ({ navigation, route }) => {
         }
       } catch (err) {
         console.error('Failed to open maps:', err);
-        Alert.alert('Error', 'Failed to open navigation app');
+        Alert.alert(t('common.error'), t('projectDetail.mapsFailed'));
       }
     } else if (customer.address) {
       // Fallback to address if coordinates not available
@@ -72,17 +76,17 @@ const ProjectDetailScreen = ({ navigation, route }) => {
         }
       } catch (err) {
         console.error('Failed to open maps:', err);
-        Alert.alert('Error', 'Failed to open navigation app');
+        Alert.alert(t('common.error'), t('projectDetail.mapsFailed'));
       }
     } else {
-      Alert.alert('Error', 'No location information available for this customer');
+      Alert.alert(t('common.error'), t('projectDetail.noLocation'));
     }
   };
 
   const handleCallCustomer = async () => {
     const { customer } = job;
     if (!customer?.phone) {
-      Alert.alert('Error', 'Customer phone number not available');
+      Alert.alert(t('common.error'), t('projectDetail.noPhone'));
       return;
     }
 
@@ -92,11 +96,11 @@ const ProjectDetailScreen = ({ navigation, route }) => {
       if (supported) {
         await Linking.openURL(url);
       } else {
-        Alert.alert('Error', 'Unable to make phone calls');
+        Alert.alert(t('common.error'), t('projectDetail.cannotCall'));
       }
     } catch (err) {
       console.error('Failed to call customer:', err);
-      Alert.alert('Error', 'Failed to initiate call');
+      Alert.alert(t('common.error'), t('projectDetail.callFailed'));
     }
   };
 
@@ -114,9 +118,9 @@ const ProjectDetailScreen = ({ navigation, route }) => {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Not scheduled';
+    if (!dateString) return t('projects.notScheduled');
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString(locale, {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
@@ -131,7 +135,7 @@ const ProjectDetailScreen = ({ navigation, route }) => {
       <View style={styles.container}>
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading job details...</Text>
+          <Text style={styles.loadingText}>{t('projectDetail.loading')}</Text>
         </View>
       </View>
     );
@@ -141,9 +145,9 @@ const ProjectDetailScreen = ({ navigation, route }) => {
     return (
       <View style={styles.container}>
         <View style={styles.centerContent}>
-          <Text style={styles.errorText}>⚠️ {error || 'Job not found'}</Text>
+          <Text style={styles.errorText}>⚠️ {error || t('projectDetail.notFound')}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadJobDetails}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -154,59 +158,59 @@ const ProjectDetailScreen = ({ navigation, route }) => {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Job Header */}
-        <View style={styles.header}>
-          <Text style={styles.jobTitle}>{job.title || `Job #${job.id}`}</Text>
+        <View style={[styles.header, rtl.row]}>
+          <Text style={[styles.jobTitle, rtl.text]}>{job.title || t('projects.jobNumber', { id: job.id })}</Text>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(job.status) }]}>
-            <Text style={styles.statusText}>{job.status || 'Pending'}</Text>
+            <Text style={styles.statusText}>{statusLabel(job.status)}</Text>
           </View>
         </View>
 
         {/* Job Description */}
-        {job.description && (
+        {!!job.description && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Description</Text>
-            <Text style={styles.descriptionText}>{job.description}</Text>
+            <Text style={[styles.sectionTitle, rtl.text]}>{t('projectDetail.description')}</Text>
+            <Text style={[styles.descriptionText, rtl.text]}>{job.description}</Text>
           </View>
         )}
 
         {/* Schedule */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Schedule</Text>
-          <Text style={styles.infoText}>📅 {formatDate(job.scheduled_date)}</Text>
+          <Text style={[styles.sectionTitle, rtl.text]}>{t('projectDetail.schedule')}</Text>
+          <Text style={[styles.infoText, rtl.text]}>📅 {formatDate(job.scheduled_at || job.scheduled_date)}</Text>
         </View>
 
         {/* Customer Information */}
-        {job.customer && (
+        {!!job.customer?.id && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Customer</Text>
+            <Text style={[styles.sectionTitle, rtl.text]}>{t('projectDetail.customer')}</Text>
             <View style={styles.customerCard}>
-              <Text style={styles.customerName}>{job.customer.name}</Text>
+              <Text style={[styles.customerName, rtl.text]}>{job.customer.name}</Text>
 
-              {job.customer.phone && (
-                <TouchableOpacity style={styles.infoRow} onPress={handleCallCustomer}>
-                  <Text style={styles.infoLabel}>📞 Phone:</Text>
+              {!!job.customer.phone && (
+                <TouchableOpacity style={[styles.infoRow, rtl.row]} onPress={handleCallCustomer}>
+                  <Text style={styles.infoLabel}>📞 {t('projectDetail.phone')}</Text>
                   <Text style={[styles.infoValue, styles.linkText]}>{job.customer.phone}</Text>
                 </TouchableOpacity>
               )}
 
-              {job.customer.email && (
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>✉️ Email:</Text>
-                  <Text style={styles.infoValue}>{job.customer.email}</Text>
+              {!!job.customer.email && (
+                <View style={[styles.infoRow, rtl.row]}>
+                  <Text style={styles.infoLabel}>✉️ {t('projectDetail.email')}</Text>
+                  <Text style={[styles.infoValue, rtl.text]}>{job.customer.email}</Text>
                 </View>
               )}
 
-              {job.customer.address && (
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>📍 Address:</Text>
-                  <Text style={styles.infoValue}>{job.customer.address}</Text>
+              {!!job.customer.address && (
+                <View style={[styles.infoRow, rtl.row]}>
+                  <Text style={styles.infoLabel}>📍 {t('projectDetail.address')}</Text>
+                  <Text style={[styles.infoValue, rtl.text]}>{job.customer.address}</Text>
                 </View>
               )}
 
               {/* Navigation Button */}
-              {(job.customer.address || (job.customer.latitude && job.customer.longitude)) && (
+              {!!(job.customer.address || (job.customer.latitude && job.customer.longitude)) && (
                 <TouchableOpacity style={styles.navigateButton} onPress={handleNavigateToCustomer}>
-                  <Text style={styles.navigateButtonText}>🗺️ Navigate to Customer</Text>
+                  <Text style={styles.navigateButtonText}>🗺️ {t('projectDetail.navigate')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -214,10 +218,10 @@ const ProjectDetailScreen = ({ navigation, route }) => {
         )}
 
         {/* Notes */}
-        {job.notes && (
+        {!!job.notes && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Notes</Text>
-            <Text style={styles.notesText}>{job.notes}</Text>
+            <Text style={[styles.sectionTitle, rtl.text]}>{t('projectDetail.notes')}</Text>
+            <Text style={[styles.notesText, rtl.text]}>{job.notes}</Text>
           </View>
         )}
       </ScrollView>

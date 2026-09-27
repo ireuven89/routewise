@@ -4,9 +4,10 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_URL = __DEV__
-    ? 'http://10.100.102.6:8080/api/v1'
-    : 'https://api.routewisehq.com/api/v1';
+// EXPO_PUBLIC_API_URL overrides (e.g. http://localhost:18080/api/v1 for the run-routewise stack).
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__
+    ? 'http://192.168.1.191:8080/api/v1'
+    : 'https://api.routewisehq.com/api/v1');
 
 // Create axios instance
 const api = axios.create({
@@ -55,7 +56,7 @@ export const auth = {
   },
 
   verifyOTP: async (companyCode, phone, code) => {
-    const response = await api.post('/workers/verify-otp', {
+    const response = await api.post('/worker/verify-otp', {
       company_code: companyCode,
       phone: phone,
       code: code,
@@ -112,8 +113,71 @@ export const files = {
   },
 };
 
+// Public customer API (no auth) — same endpoints as the web /find-service flow
+// (frontend/src/api/client.js providersAPI + serviceRequestsAPI).
+export const publicApi = {
+  searchProviders: async (lat, lng, serviceType) => {
+    const response = await api.get('/public/providers', {
+      params: { lat, lng, service_type: serviceType },
+    });
+    return response.data.providers || [];
+  },
+
+  // data: {service_type, description, customer_name, customer_phone, latitude, longitude, address, preferred_time}
+  // returns {id, access_token, status, tracking_url}
+  createRequest: async (data) => {
+    const response = await api.post('/public/service-requests', data);
+    return response.data;
+  },
+
+  // returns {request, bids}
+  getRequest: async (token) => {
+    const response = await api.get(`/public/service-requests/${token}`);
+    return response.data;
+  },
+
+  awardBid: async (token, bidId) => {
+    const response = await api.post(`/public/service-requests/${token}/award`, { bid_id: bidId });
+    return response.data;
+  },
+};
+
+const MODE_KEY = 'mode';
+const MY_REQUESTS_KEY = 'myRequests';
+const CUSTOMER_PROFILE_KEY = 'customerProfile';
+
 // Helper functions
 export const storage = {
+  // 'customer' | 'technician' | null (null = show role selection)
+  getMode: async () => AsyncStorage.getItem(MODE_KEY),
+
+  setMode: async (mode) => {
+    if (mode) await AsyncStorage.setItem(MODE_KEY, mode);
+    else await AsyncStorage.removeItem(MODE_KEY);
+  },
+
+  // Customers have no account: each posted request's access_token is kept on the device.
+  getMyRequests: async () => {
+    const raw = await AsyncStorage.getItem(MY_REQUESTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  },
+
+  addMyRequest: async (entry) => {
+    const existing = await storage.getMyRequests();
+    const next = [entry, ...existing.filter((r) => r.token !== entry.token)];
+    await AsyncStorage.setItem(MY_REQUESTS_KEY, JSON.stringify(next));
+    return next;
+  },
+
+  getCustomerProfile: async () => {
+    const raw = await AsyncStorage.getItem(CUSTOMER_PROFILE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  },
+
+  saveCustomerProfile: async (profile) => {
+    await AsyncStorage.setItem(CUSTOMER_PROFILE_KEY, JSON.stringify(profile));
+  },
+
   saveToken: async (token) => {
     await AsyncStorage.setItem('token', token);
   },
@@ -131,6 +195,7 @@ export const storage = {
     return worker ? JSON.parse(worker) : null;
   },
   
+  // Worker logout. Leaves the customer's saved requests, profile and language alone.
   clearAll: async () => {
     await AsyncStorage.multiRemove(['token', 'worker']);
   },
