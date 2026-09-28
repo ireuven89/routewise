@@ -14,6 +14,7 @@ export const colors = {
   // Backgrounds
   background: '#f5f7fa',
   backgroundWhite: '#ffffff',
+  cardBackground: '#ffffff',
   inputBg: '#e8eef5',
   
   // Text

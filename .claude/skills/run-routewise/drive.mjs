@@ -6,6 +6,8 @@
 //   node drive.mjs flow <flow.mjs> [--auth] [--lang en|he] run `export default async ({page, shot, api, user}) => {}`
 //
 // --auth registers a fresh org user via the API and injects its token into localStorage (skips the login UI).
+// --viewport 390x844  phone-sized page (use for the Expo app: RW_WEB_URL=http://localhost:8190)
+// --geo 32.08,34.78   grant geolocation at that position (the mobile "use my location" button)
 // Prints a JSON summary (url, title, headings, console errors, failed API calls, screenshot paths).
 import { chromium } from 'playwright-core';
 import path from 'node:path';
@@ -20,7 +22,8 @@ fs.mkdirSync(OUT, { recursive: true });
 const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(name);
 const opt = (name, dflt) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : dflt; };
-const positional = argv.filter((a, i) => !a.startsWith('--') && !(argv[i - 1] || '').startsWith('--lang'));
+const VALUE_FLAGS = ['--lang', '--viewport', '--geo'];
+const positional = argv.filter((a, i) => !a.startsWith('--') && !VALUE_FLAGS.includes(argv[i - 1]));
 const [cmd, ...rest] = positional;
 const lang = opt('--lang', 'en');
 
@@ -55,7 +58,15 @@ async function main() {
   const user = (flag('--auth') || cmd === 'login') ? await registerUser() : null;
 
   const browser = await chromium.launch({ channel: process.env.RW_BROWSER_CHANNEL || 'chrome', headless: true });
-  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const [vw, vh] = opt('--viewport', '1400x900').split('x').map(Number);
+  const geo = opt('--geo');
+  const ctx = await browser.newContext({
+    viewport: { width: vw, height: vh },
+    ...(geo ? {
+      permissions: ['geolocation'],
+      geolocation: { latitude: Number(geo.split(',')[0]), longitude: Number(geo.split(',')[1]) },
+    } : {}),
+  });
   const consoleErrors = [], failedApi = [], shots = [];
   await ctx.addInitScript(([l, u, auth]) => {
     // Only on first load of a fresh context, so later logout/login in a flow is not undone.

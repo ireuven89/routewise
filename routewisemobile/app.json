@@ -24,6 +24,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "RouteWise uses your location to find service providers near you. / RouteWise משתמשת במיקום שלכם כדי למצוא ספקי שירות בקרבתכם."
+        }
+      ]
+    ]
   }
 }

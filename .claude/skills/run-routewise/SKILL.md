@@ -1,13 +1,13 @@
 ---
 name: run-routewise
-description: Run, start, launch, screenshot, or drive the RouteWise stack (Go API + React web app) locally with an isolated throwaway Postgres; log in, click through pages, run UI flows, curl the API, and run backend/frontend/integration tests. Use when asked to run routewise, start the backend or frontend, take a screenshot of a page, or verify a change in the real app.
+description: Run, start, launch, screenshot, or drive the RouteWise stack (Go API + React web app + Expo mobile app) locally with an isolated throwaway Postgres; log in, click through pages, run UI flows, curl the API, and run backend/frontend/integration tests. Use when asked to run routewise, start the backend or frontend, take a screenshot of a page, or verify a change in the real app.
 ---
 
 # Run RouteWise
 
-RouteWise = Go/Gin API (`backend/`) + CRA React web app (`frontend/`) + Postgres. Agents drive it with two files in this skill:
+RouteWise = Go/Gin API (`backend/`) + CRA React web app (`frontend/`) + Expo React Native app (`routewisemobile/`) + Postgres. Agents drive it with two files in this skill:
 
-- `stack.sh` – starts a **throwaway** Postgres container (port 55432), the API (18080) and the web dev server (3100). Isolated from `backend/.env`, the `routewise-db` compose container, and every real Twilio/AWS/Google key.
+- `stack.sh` – starts a **throwaway** Postgres container (port 55432), the API (18080), and either the web dev server (3100) or the mobile app's web build (8190). Isolated from `backend/.env`, the `routewise-db` compose container, and every real Twilio/AWS/Google key.
 - `drive.mjs` – headless Chrome via `playwright-core`: screenshots, real UI login, or scripted flows. Prints JSON with headings, console errors and failed API calls.
 
 All paths below are relative to the repo root. Verified on macOS (arm64), Go 1.24, Node 24, Docker Desktop.
@@ -56,6 +56,25 @@ curl -s -X POST localhost:18080/api/v1/public/service-requests -H 'Content-Type:
 
 Routes: `backend/internal/api/routes.go`. Logs: `$S logs api`, `$S logs web`.
 
+## Run: mobile app (`routewisemobile/`)
+
+The Expo app runs as a web page (react-native-web), rendering the same screens as on a phone. Drive it with `drive.mjs` using a phone-sized viewport. Launch picks a role: **customer** (find service → post job → offers → award, no login) or **technician** (company code + SMS code, then jobs). Hebrew is the default.
+
+```bash
+$S up mobile                                   # db + api + Expo web on :8190 (~5s warm; first bundle ~20s)
+$S seed-provider plumbing > $TMPDIR/routewise-run/provider.json   # searchable Tel Aviv provider that receives leads
+RW_WEB_URL=http://localhost:8190 node $D shot / role.png --lang he --viewport 390x844
+RW_WEB_URL=http://localhost:8190 node $D flow .claude/skills/run-routewise/flows/mobile-customer.mjs \
+  --lang he --viewport 390x844 --geo 32.0809,34.7806   # full flow: 8 screenshots, provider bids via API, award → job
+$S restart mobile                              # REQUIRED after editing app code (no file watching, see Gotchas)
+(cd routewisemobile && npx jest)               # unit tests (jest-expo)
+```
+
+- `--geo lat,lng` grants browser geolocation, which makes the "use my location" button work. `--viewport WxH` sets the screen size.
+- Selectors: React Native `testID` becomes `data-testid`, so use `page.getByTestId('post-job')`.
+- **Technician login locally:** `POST /workers/request-otp` returns `failed to send SMS` (no Twilio) and the UI stays on step 1, but the code *is* stored. Read it with `docker exec routewise-run-db psql -U routewise -tAc "select otp_code from worker_otps order by id desc limit 1"`, then `POST /api/v1/worker/verify-otp`. To see the jobs screens, put the returned `token` + `worker` into `localStorage` (the navigator polls it every second).
+- Creating a technician via `POST /workers` needs `"home_address_components":{}` in the body. Without it the API returns 500 (`invalid input syntax for type json`).
+
 ## Tests
 
 ```bash
@@ -65,6 +84,7 @@ docker exec routewise-run-db psql -U routewise -c 'CREATE DATABASE routewise_tes
 (cd backend && TEST_DATABASE_URL='postgres://routewise:routewise@localhost:55432/routewise_test?sslmode=disable' JWT_SECRET=t \
   go test -tags integration -count=1 -p 1 ./internal/integration/...)
 (cd frontend && CI=true npm test -- --watchAll=false)
+(cd routewisemobile && npx jest)
 ```
 
 ## Run (human path)
@@ -82,6 +102,11 @@ docker exec routewise-run-db psql -U routewise -c 'CREATE DATABASE routewise_tes
 - **No Google Maps key locally**: address fields in `CustomerModal`/`WorkerModal` fall back to a plain `input[name="address"]` (scriptable). Geocoding silently leaves `latitude/longitude` null. On `/find-service` the address box is a Places autocomplete that stays inert, so the "post job" button stays disabled in the UI. Create service requests via the API (curl above) and screenshot `/find-service/requests/<access_token>`.
 - **Twilio creds are blank**: sends fail and are logged, not fatal. A new service request only notifies orgs whose service area covers the point, and freshly registered orgs have none, so usually nothing is sent at all.
 - `$S up` can return before webpack's first compile finishes. `drive.mjs` waits for `networkidle`, so it doesn't matter there; with plain curl, give it a few seconds.
+- **Expo web runs with `CI=1`** (non-interactive), which **disables Metro file watching**. After editing `routewisemobile/` code, run `$S restart mobile`, or you will screenshot a stale bundle. (This bit me: a "fixed" warning kept appearing.)
+- **Mobile i18n/RTL:** the app does not use `I18nManager.forceRTL`. Screens flip layout per style via `useRTL()` (`src/i18n/LanguageContext.js`), so switching language is instant. The language is stored under AsyncStorage key `language`, which on web is `localStorage.language`, so `--lang` works for the mobile app too.
+- **`Alert.alert` with buttons is a no-op on react-native-web.** The mobile app routes confirms through `src/utils/confirm.js` (`window.confirm` on web). Flows must `page.on('dialog', d => d.accept())`.
+- **Mobile address on web** falls back to raw coordinates, because browsers can't reverse-geocode. On a device, `expo-location` gives a street address.
+- **Don't kill port 8081/8082 Expo processes** you didn't start. The user may be running their own Metro session for Expo Go. `stack.sh` only manages the one on `RW_MOBILE_PORT` (8190).
 - The dashboard greeting shows `Welcome back,` with no name, and the industry chip shows HVAC for a `plumbing` registration. That is current app behavior, not a harness bug.
 
 ## Troubleshooting

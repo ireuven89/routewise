@@ -3,9 +3,14 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, 
 import { useNavigation } from '@react-navigation/native';
 import { jobs, storage } from '../../services/api';
 import { colors, theme } from '../../theme/colors';
+import { useLanguage, useRTL } from '../../i18n/LanguageContext';
+import LanguageToggle from '../../components/LanguageToggle';
 
 const ProjectsListScreen = () => {
   const navigation = useNavigation();
+  const { t, locale } = useLanguage();
+  const rtl = useRTL();
+  const statusLabel = (status) => (status ? t(`status.${status.toLowerCase()}`) : t('status.pending'));
   const [jobsList, setJobsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -22,7 +27,7 @@ const ProjectsListScreen = () => {
       setJobsList(response || []);
     } catch (err) {
       console.error('Failed to load jobs:', err);
-      setError('Failed to load jobs. Pull to refresh.');
+      setError(t('projects.loadFailed'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -53,9 +58,9 @@ const ProjectsListScreen = () => {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Not scheduled';
+    if (!dateString) return t('projects.notScheduled');
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const renderJobCard = ({ item }) => (
@@ -63,36 +68,36 @@ const ProjectsListScreen = () => {
       style={styles.jobCard}
       onPress={() => navigation.navigate('ProjectDetail', { jobId: item.id })}
     >
-      <View style={styles.jobHeader}>
-        <Text style={styles.jobTitle} numberOfLines={1}>
-          {item.title || `Job #${item.id}`}
+      <View style={[styles.jobHeader, rtl.row]}>
+        <Text style={[styles.jobTitle, rtl.text]} numberOfLines={1}>
+          {item.title || t('projects.jobNumber', { id: item.id })}
         </Text>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusText}>{item.status || 'Pending'}</Text>
+          <Text style={styles.statusText}>{statusLabel(item.status)}</Text>
         </View>
       </View>
 
-      <View style={styles.jobInfo}>
-        <Text style={styles.jobLabel}>Customer:</Text>
-        <Text style={styles.jobValue}>{item.customer?.name || 'Unknown'}</Text>
+      <View style={[styles.jobInfo, rtl.row]}>
+        <Text style={styles.jobLabel}>{t('projects.customer')}</Text>
+        <Text style={[styles.jobValue, rtl.text]}>{item.customer?.name || t('projects.unknown')}</Text>
       </View>
 
-      {item.customer?.address && (
-        <View style={styles.jobInfo}>
+      {!!item.customer?.address && (
+        <View style={[styles.jobInfo, rtl.row]}>
           <Text style={styles.jobLabel}>📍</Text>
-          <Text style={styles.jobValue} numberOfLines={2}>
+          <Text style={[styles.jobValue, rtl.text]} numberOfLines={2}>
             {item.customer.address}
           </Text>
         </View>
       )}
 
-      <View style={styles.jobInfo}>
-        <Text style={styles.jobLabel}>Scheduled:</Text>
-        <Text style={styles.jobValue}>{formatDate(item.scheduled_date)}</Text>
+      <View style={[styles.jobInfo, rtl.row]}>
+        <Text style={styles.jobLabel}>{t('projects.scheduled')}</Text>
+        <Text style={[styles.jobValue, rtl.text]}>{formatDate(item.scheduled_at || item.scheduled_date)}</Text>
       </View>
 
-      {item.description && (
-        <Text style={styles.jobDescription} numberOfLines={2}>
+      {!!item.description && (
+        <Text style={[styles.jobDescription, rtl.text]} numberOfLines={2}>
           {item.description}
         </Text>
       )}
@@ -102,12 +107,12 @@ const ProjectsListScreen = () => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Jobs</Text>
+        <View style={[styles.header, rtl.row]}>
+          <Text style={styles.headerTitle}>{t('projects.myJobs')}</Text>
         </View>
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading jobs...</Text>
+          <Text style={styles.loadingText}>{t('projects.loading')}</Text>
         </View>
       </View>
     );
@@ -115,24 +120,27 @@ const ProjectsListScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Jobs</Text>
-        <TouchableOpacity onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+      <View style={[styles.header, rtl.row]}>
+        <Text style={styles.headerTitle}>{t('projects.myJobs')}</Text>
+        <View style={[styles.headerActions, rtl.row]}>
+          <LanguageToggle />
+          <TouchableOpacity onPress={handleLogout}>
+            <Text style={styles.logoutText}>{t('projects.logout')}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {error ? (
         <View style={styles.centerContent}>
           <Text style={styles.errorText}>⚠️ {error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadJobs}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : jobsList.length === 0 ? (
         <View style={styles.centerContent}>
-          <Text style={styles.emptyText}>📋 No jobs assigned yet</Text>
-          <Text style={styles.emptySubtext}>Check back later for new assignments</Text>
+          <Text style={styles.emptyText}>📋 {t('projects.empty')}</Text>
+          <Text style={styles.emptySubtext}>{t('projects.emptySub')}</Text>
         </View>
       ) : (
         <FlatList
@@ -167,6 +175,11 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xl,
     fontWeight: 'bold',
     color: colors.textWhite,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
   },
   logoutText: {
     color: colors.accent,
