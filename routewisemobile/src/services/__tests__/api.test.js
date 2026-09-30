@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api, { publicApi, storage } from '../api';
+import api, { jobs, publicApi, storage } from '../api';
 
 afterEach(() => {
   jest.restoreAllMocks();
@@ -141,5 +141,57 @@ describe('storage', () => {
       expect(await storage.getCustomerProfile()).toEqual({ name: 'Dana' });
       expect(await AsyncStorage.getItem('language')).toBe('en');
     });
+  });
+});
+
+describe('jobs (technician accept/decline)', () => {
+  it('accept POSTs /jobs/:id/accept and returns the body', async () => {
+    const postSpy = jest.spyOn(api, 'post').mockResolvedValue({ data: { message: 'Job accepted' } });
+
+    const result = await jobs.accept(42);
+
+    expect(postSpy).toHaveBeenCalledWith('/jobs/42/accept');
+    expect(result).toEqual({ message: 'Job accepted' });
+  });
+
+  it('decline POSTs the reason to /jobs/:id/decline', async () => {
+    const postSpy = jest.spyOn(api, 'post').mockResolvedValue({ data: { message: 'Job declined' } });
+
+    const result = await jobs.decline(42, 'Too far away');
+
+    expect(postSpy).toHaveBeenCalledWith('/jobs/42/decline', { reason: 'Too far away' });
+    expect(result).toEqual({ message: 'Job declined' });
+  });
+
+  it.each([undefined, null, ''])('decline sends an empty reason when given %p', async (reason) => {
+    const postSpy = jest.spyOn(api, 'post').mockResolvedValue({ data: {} });
+
+    await jobs.decline(7, reason);
+
+    expect(postSpy).toHaveBeenCalledWith('/jobs/7/decline', { reason: '' });
+  });
+
+  it('propagates server errors (e.g. 409 invalid assignment state)', async () => {
+    const err = Object.assign(new Error('Request failed with status code 409'), {
+      response: { status: 409, data: { error: 'job is not in a state that allows this' } },
+    });
+    jest.spyOn(api, 'post').mockRejectedValue(err);
+
+    await expect(jobs.accept(1)).rejects.toBe(err);
+  });
+
+  it('updateStatus PATCHes /jobs/:id/status', async () => {
+    const patchSpy = jest.spyOn(api, 'patch').mockResolvedValue({ data: { message: 'ok' } });
+
+    await jobs.updateStatus(3, 'in_progress');
+
+    expect(patchSpy).toHaveBeenCalledWith('/jobs/3/status', { status: 'in_progress' });
+  });
+
+  it('getMyJobs GETs /jobs (the server scopes it to the technician)', async () => {
+    const getSpy = jest.spyOn(api, 'get').mockResolvedValue({ data: [{ id: 1 }] });
+
+    expect(await jobs.getMyJobs()).toEqual([{ id: 1 }]);
+    expect(getSpy).toHaveBeenCalledWith('/jobs');
   });
 });
