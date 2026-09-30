@@ -33,57 +33,73 @@ func SetupRoutes(router *gin.Engine, h handlers.Handlers) {
 			public.POST("/service-requests/:token/award", h.ServiceRequest.Award)
 		}
 
-		// Protected routes
+		// Protected routes (org users and technicians)
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware())
 		{
 			protected.GET("/me", h.Auth.GetProfile)
 
-			// Google Maps configuration
-			protected.GET("/config/google-maps", h.Geocoding.GetFrontendConfig)
-
-			//service calls
-			protected.POST("service_calls", h.Job.CreateServiceCall)
-
-			// Jobs
-			protected.POST("/jobs", h.Job.Create)
+			// Jobs a technician needs in the mobile app. Handlers limit technicians to the
+			// jobs assigned to them; owners see the whole organization.
 			protected.GET("/jobs", h.Job.GetAll)
 			protected.GET("/jobs/:id", h.Job.GetByID)
-			protected.PUT("/jobs/:id", h.Job.Update)
-			protected.DELETE("/jobs/:id", h.Job.Delete)
-			protected.PATCH("/jobs/:id/assign", h.Job.AssignTechnician)
 			protected.PATCH("/jobs/:id/status", h.Job.UpdateStatus)
-
-			// Customers
-			protected.POST("/customers", h.Customer.Create)
-			protected.GET("/customers", h.Customer.GetAll)
-			protected.GET("/customers/:id", h.Customer.GetByID)
-			protected.PUT("/customers/:id", h.Customer.Update)
-			protected.DELETE("/customers/:id", h.Customer.Delete)
-
-			// Technicians
-			protected.POST("/workers", h.Technician.Create)
-			protected.GET("/workers", h.Technician.GetAll)
-			protected.GET("/workers/:id", h.Technician.GetByID)
-			protected.PUT("/workers/:id", h.Technician.Update)
-			protected.DELETE("/workers/:id", h.Technician.Delete)
 
 			//files
 			protected.POST("/projects/:id/files", h.Files.Upload)
 			protected.GET("projects/:id/files", h.Files.ListFiles)
 			protected.GET("/files/:id", h.Files.GetFile)
 			protected.DELETE("/files/:id", h.Files.DeleteFile)
+		}
+
+		// Technician-only: respond to an assigned job
+		worker := v1.Group("")
+		worker.Use(middleware.AuthMiddleware(), middleware.RequireWorker())
+		{
+			worker.POST("/jobs/:id/accept", h.Job.Accept)
+			worker.POST("/jobs/:id/decline", h.Job.Decline)
+		}
+
+		// Organization users only (technician tokens get 403)
+		orgOnly := v1.Group("")
+		orgOnly.Use(middleware.AuthMiddleware(), middleware.RequireOrgUser())
+		{
+			// Google Maps configuration
+			orgOnly.GET("/config/google-maps", h.Geocoding.GetFrontendConfig)
+
+			//service calls
+			orgOnly.POST("service_calls", h.Job.CreateServiceCall)
+
+			// Jobs (create / edit / dispatch)
+			orgOnly.POST("/jobs", h.Job.Create)
+			orgOnly.PUT("/jobs/:id", h.Job.Update)
+			orgOnly.DELETE("/jobs/:id", h.Job.Delete)
+			orgOnly.PATCH("/jobs/:id/assign", h.Job.AssignTechnician)
+
+			// Customers
+			orgOnly.POST("/customers", h.Customer.Create)
+			orgOnly.GET("/customers", h.Customer.GetAll)
+			orgOnly.GET("/customers/:id", h.Customer.GetByID)
+			orgOnly.PUT("/customers/:id", h.Customer.Update)
+			orgOnly.DELETE("/customers/:id", h.Customer.Delete)
+
+			// Technicians
+			orgOnly.POST("/workers", h.Technician.Create)
+			orgOnly.GET("/workers", h.Technician.GetAll)
+			orgOnly.GET("/workers/:id", h.Technician.GetByID)
+			orgOnly.PUT("/workers/:id", h.Technician.Update)
+			orgOnly.DELETE("/workers/:id", h.Technician.Delete)
 
 			// Organization settings (service area + pricing)
-			protected.PUT("/organization/service-area", h.Provider.UpdateServiceArea)
-			protected.PUT("/organization/service-offer", h.Provider.UpdateServiceOffer)
+			orgOnly.PUT("/organization/service-area", h.Provider.UpdateServiceArea)
+			orgOnly.PUT("/organization/service-offer", h.Provider.UpdateServiceOffer)
 
 			// Dashboard stats
-			protected.GET("/dashboard/stats", h.Dashboard.GetStats)
+			orgOnly.GET("/dashboard/stats", h.Dashboard.GetStats)
 
-			// Smart dispatching (org-side leads/bids)
-			protected.GET("/leads", h.ServiceRequest.ListLeads)
-			protected.PUT("/leads/:id/bid", h.ServiceRequest.UpsertBid)
+			// Find-service bidding: org-side leads/bids
+			orgOnly.GET("/leads", h.ServiceRequest.ListLeads)
+			orgOnly.PUT("/leads/:id/bid", h.ServiceRequest.UpsertBid)
 		}
 	}
 }

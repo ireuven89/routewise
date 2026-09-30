@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/getsentry/sentry-go"
@@ -57,6 +58,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		req.Phone,
 		req.CompanyName,
 		req.Industry)
+
+	if ctx.Err() == context.DeadlineExceeded {
+	}
 
 	if err != nil {
 		// Check error type for appropriate status code

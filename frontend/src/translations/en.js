@@ -36,6 +36,9 @@ const en = {
 
     // ─── Dashboard ──────────────────────────────────────────────────────────
     dashboard: {
+        dispatchNeedsTechnician: '{{count}} jobs need a technician',
+        dispatchWaiting: '{{count}} waiting for the technician to accept',
+        dispatchCta: 'Assign now',
         title: 'Dashboard',
         welcome: 'Welcome back,',
         companyCodeLabel: 'Company Code',
@@ -224,6 +227,13 @@ const en = {
         cancel: 'Cancel',
         updateJob: 'Update Job',
         createJobBtn: 'Create Job',
+        filterUnassigned: 'Unassigned',
+        needsTechnician: 'Needs technician',
+        waitingFor: 'Waiting for {{name}} to accept',
+        accepted: 'Accepted by {{name}}',
+        declinedBy: 'Declined by {{name}}',
+        declineReason: 'Reason: {{reason}}',
+        fromBid: 'From bid',
     },
 
     // ─── Service Call ─────────────────────────────────────────────────────────

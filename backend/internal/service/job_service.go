@@ -13,7 +13,24 @@ import (
 var (
 	ErrJobNotFound   = errors.New("job not found")
 	ErrInvalidStatus = errors.New("invalid status")
+	// ErrInvalidTechnician: the technician doesn't exist in this organization or is inactive.
+	ErrInvalidTechnician = errors.New("invalid technician")
+	// ErrInvalidAssignmentState: e.g. accepting a job that isn't a pending offer.
+	ErrInvalidAssignmentState = errors.New("job is not in a state that allows this")
+	// ErrMustAcceptFirst: a technician tried to work on a job they haven't accepted.
+	ErrMustAcceptFirst = errors.New("accept the job first")
 )
+
+// Statuses a technician may move their own job to (owners can set any valid status).
+var workerSettableStatuses = map[models.JobStatus]bool{
+	models.StatusInProgress: true,
+	models.StatusCompleted:  true,
+}
+
+// workerLookup is the part of the worker repository the job service needs.
+type workerLookup interface {
+	FindByID(id uint, organizationID uint) (*models.Worker, error)
+}
 
 var validJobStatuses = map[models.JobStatus]bool{
 	models.StatusScheduled:  true,
@@ -30,16 +47,35 @@ type JobService interface {
 	Update(id, organizationID uint, input UpdateJobInput) (*models.Job, error)
 	AssignTechnician(id, organizationID uint, technicianID *uint) error
 	UpdateStatus(id, organizationID uint, status string) error
+
+	// Technician-side (worker token) operations; all are limited to the worker's own jobs.
+	GetByIDForWorker(id, organizationID, workerID uint) (*models.Job, error)
+	UpdateStatusAsWorker(id, organizationID, workerID uint, status string) error
+	AcceptJob(id, organizationID, workerID uint) error
+	DeclineJob(id, organizationID, workerID uint, reason string) error
 	Delete(id, organizationID uint) error
 	GetDashboardStats(organizationID uint) (*models.DashboardStats, error)
 }
 
 type JobSvc struct {
-	repo *repository.JobRepository
+	repo    *repository.JobRepository
+	workers workerLookup
 }
 
-func NewJobService(repo *repository.JobRepository) *JobSvc {
-	return &JobSvc{repo: repo}
+func NewJobService(repo *repository.JobRepository, workers workerLookup) *JobSvc {
+	return &JobSvc{repo: repo, workers: workers}
+}
+
+// validateTechnician rejects assigning a technician from another organization or an inactive one.
+func (s *JobSvc) validateTechnician(organizationID uint, technicianID *uint) error {
+	if technicianID == nil {
+		return nil
+	}
+	w, err := s.workers.FindByID(*technicianID, organizationID)
+	if err != nil || w == nil || !w.IsActive {
+		return ErrInvalidTechnician
+	}
+	return nil
 }
 
 type CreateJobInput struct {
@@ -66,6 +102,9 @@ type UpdateJobInput struct {
 }
 
 func (s *JobSvc) CreateServiceCall(ctx context.Context, organizationID uint, request *models.CreateServiceCallRequest) (*models.CreateServiceCallResponse, error) {
+	if err := s.validateTechnician(organizationID, request.TechnicianID); err != nil {
+		return nil, err
+	}
 
 	response, err := s.repo.CreateServiceCall(ctx, organizationID, request)
 
@@ -78,9 +117,12 @@ func (s *JobSvc) CreateServiceCall(ctx context.Context, organizationID uint, req
 }
 
 func (s *JobSvc) Create(input CreateJobInput) (*models.Job, error) {
+	if err := s.validateTechnician(input.OrganizationID, input.TechnicianID); err != nil {
+		return nil, err
+	}
 	duration := input.DurationMinutes
 	if duration == 0 {
-		duration = 60 // default 1 hour
+		duration = repository.DefaultJobDurationMinutes
 	}
 
 	job := &models.Job{
@@ -150,7 +192,74 @@ func (s *JobSvc) Update(id, organizationID uint, input UpdateJobInput) (*models.
 }
 
 func (s *JobSvc) AssignTechnician(id, organizationID uint, technicianID *uint) error {
+	if err := s.validateTechnician(organizationID, technicianID); err != nil {
+		return err
+	}
 	return s.repo.AssignTechnician(id, organizationID, technicianID)
+}
+
+// GetByIDForWorker returns the job only if it's assigned to this worker; anything else is
+// reported as not found so technicians can't probe other jobs.
+func (s *JobSvc) GetByIDForWorker(id, organizationID, workerID uint) (*models.Job, error) {
+	job, err := s.repo.FindByID(id, organizationID)
+	if err != nil || job.TechnicianID == nil || *job.TechnicianID != workerID {
+		return nil, ErrJobNotFound
+	}
+	return job, nil
+}
+
+// UpdateStatusAsWorker lets a technician start/complete their own job, but only after accepting it.
+func (s *JobSvc) UpdateStatusAsWorker(id, organizationID, workerID uint, status string) error {
+	jobStatus := models.JobStatus(status)
+	if !workerSettableStatuses[jobStatus] {
+		return ErrInvalidStatus
+	}
+	job, err := s.GetByIDForWorker(id, organizationID, workerID)
+	if err != nil {
+		return err
+	}
+	if job.AssignmentStatus == nil || *job.AssignmentStatus != models.AssignmentAccepted {
+		return ErrMustAcceptFirst
+	}
+	return s.repo.UpdateStatus(id, organizationID, jobStatus)
+}
+
+func (s *JobSvc) AcceptJob(id, organizationID, workerID uint) error {
+	job, err := s.GetByIDForWorker(id, organizationID, workerID)
+	if err != nil {
+		return err
+	}
+	if job.AssignmentStatus == nil || *job.AssignmentStatus != models.AssignmentPending ||
+		job.Status == models.StatusCancelled || job.Status == models.StatusCompleted {
+		return ErrInvalidAssignmentState
+	}
+	ok, err := s.repo.AcceptAssignment(id, organizationID, workerID)
+	if err != nil {
+		return err
+	}
+	if !ok { // changed underneath us (reassigned/declined/cancelled)
+		return ErrInvalidAssignmentState
+	}
+	return nil
+}
+
+// DeclineJob sends a scheduled job back to the unassigned pool, recording who declined and why.
+func (s *JobSvc) DeclineJob(id, organizationID, workerID uint, reason string) error {
+	job, err := s.GetByIDForWorker(id, organizationID, workerID)
+	if err != nil {
+		return err
+	}
+	if job.Status != models.StatusScheduled {
+		return ErrInvalidAssignmentState
+	}
+	ok, err := s.repo.DeclineAssignment(id, organizationID, workerID, reason)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrInvalidAssignmentState
+	}
+	return nil
 }
 
 func (s *JobSvc) UpdateStatus(id, organizationID uint, status string) error {

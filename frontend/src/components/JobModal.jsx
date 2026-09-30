@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { format } from 'date-fns';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,10 +10,11 @@ const JobModal = ({ job, customers, technicians, onSave, onClose }) => {
 
     const [formData, setFormData] = useState({
         customer_id: job?.customer_id || '',
-        technician_id: job?.technician_id || '',
+        technician_id: job?.worker_id || '', // the API calls the assignee worker_id
         title: job?.title || '',
         description: job?.description || '',
-        scheduled_at: job?.scheduled_at ? job.scheduled_at.slice(0, 16) : '',
+        // datetime-local wants local time; slicing the UTC ISO string would shift it by the TZ offset.
+        scheduled_at: job?.scheduled_at ? format(new Date(job.scheduled_at), "yyyy-MM-dd'T'HH:mm") : '',
         duration_minutes: job?.duration_minutes || 60,
         price: job?.price || '',
     });

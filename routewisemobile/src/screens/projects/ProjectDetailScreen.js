@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking, Platform, Alert } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking, Platform, Alert,
+  Modal, TextInput,
+} from 'react-native';
 import { jobs } from '../../services/api';
 import { colors, theme } from '../../theme/colors';
 import { useLanguage, useRTL } from '../../i18n/LanguageContext';
+import { notify } from '../../utils/confirm';
 
 const ProjectDetailScreen = ({ navigation, route }) => {
   const { jobId } = route.params;
@@ -12,6 +16,9 @@ const ProjectDetailScreen = ({ navigation, route }) => {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [showDecline, setShowDecline] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
 
   useEffect(() => {
     loadJobDetails();
@@ -29,6 +36,33 @@ const ProjectDetailScreen = ({ navigation, route }) => {
       setLoading(false);
     }
   };
+
+  // Accept / decline / start / complete all follow the same shape: call, then refresh or leave.
+  const runAction = async (action, after = loadJobDetails) => {
+    setBusy(true);
+    try {
+      await action();
+      await after();
+    } catch (err) {
+      console.error('Job action failed:', err);
+      notify(t('common.error'), err.response?.data?.error || t('projectDetail.actionFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAccept = () => runAction(() => jobs.accept(jobId));
+
+  // A declined job leaves this technician's list, so go back to it.
+  const handleDecline = () => runAction(
+    () => jobs.decline(jobId, declineReason.trim()),
+    async () => {
+      setShowDecline(false);
+      navigation.goBack();
+    },
+  );
+
+  const handleStatus = (status) => runAction(() => jobs.updateStatus(jobId, status));
 
   const handleNavigateToCustomer = async () => {
     const { customer } = job;
@@ -165,6 +199,49 @@ const ProjectDetailScreen = ({ navigation, route }) => {
           </View>
         </View>
 
+        {/* Respond to the assignment, then work it */}
+        {job.assignment_status === 'pending' ? (
+          <View style={styles.offerCard} testID="assignment-offer">
+            <Text style={[styles.offerTitle, rtl.text]}>🔔 {t('projectDetail.newAssignment')}</Text>
+            <Text style={[styles.offerSub, rtl.text]}>{t('projectDetail.newAssignmentSub')}</Text>
+            <View style={[styles.actionRow, rtl.row]}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.acceptButton, busy && styles.disabled]}
+                onPress={handleAccept}
+                disabled={busy}
+                testID="accept-job"
+              >
+                {busy
+                  ? <ActivityIndicator color={colors.textWhite} />
+                  : <Text style={styles.actionButtonText}>✓ {t('projectDetail.accept')}</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.declineButton, busy && styles.disabled]}
+                onPress={() => setShowDecline(true)}
+                disabled={busy}
+                testID="decline-job"
+              >
+                <Text style={[styles.actionButtonText, { color: colors.error }]}>{t('projectDetail.decline')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : job.status === 'scheduled' || job.status === 'in_progress' ? (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.primaryAction, busy && styles.disabled]}
+            onPress={() => handleStatus(job.status === 'scheduled' ? 'in_progress' : 'completed')}
+            disabled={busy}
+            testID={job.status === 'scheduled' ? 'start-job' : 'complete-job'}
+          >
+            {busy
+              ? <ActivityIndicator color={colors.textWhite} />
+              : (
+                <Text style={styles.actionButtonText}>
+                  {job.status === 'scheduled' ? `▶ ${t('projectDetail.startJob')}` : `✓ ${t('projectDetail.completeJob')}`}
+                </Text>
+              )}
+          </TouchableOpacity>
+        ) : null}
+
         {/* Job Description */}
         {!!job.description && (
           <View style={styles.section}>
@@ -225,6 +302,40 @@ const ProjectDetailScreen = ({ navigation, route }) => {
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={showDecline} transparent animationType="fade" onRequestClose={() => setShowDecline(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={[styles.offerTitle, rtl.text]}>{t('projectDetail.declineTitle')}</Text>
+            <Text style={[styles.modalLabel, rtl.text]}>{t('projectDetail.declineReasonLabel')}</Text>
+            <TextInput
+              style={[styles.modalInput, rtl.text]}
+              value={declineReason}
+              onChangeText={setDeclineReason}
+              placeholder={t('projectDetail.declineReasonPlaceholder')}
+              multiline
+              testID="decline-reason"
+            />
+            <View style={[styles.actionRow, rtl.row]}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.declineConfirmButton, busy && styles.disabled]}
+                onPress={handleDecline}
+                disabled={busy}
+                testID="confirm-decline"
+              >
+                <Text style={styles.actionButtonText}>{t('projectDetail.declineConfirm')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.cancelButton]}
+                onPress={() => setShowDecline(false)}
+                disabled={busy}
+              >
+                <Text style={[styles.actionButtonText, { color: colors.text }]}>{t('common.cancel')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -236,6 +347,76 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: theme.spacing.md,
+  },
+  offerCard: {
+    backgroundColor: '#fff7ed',
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: 12,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+  },
+  offerTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  offerSub: {
+    fontSize: theme.fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.md,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  actionButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.md,
+  },
+  actionButtonText: {
+    color: colors.textWhite,
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+  },
+  acceptButton: { backgroundColor: colors.success },
+  declineButton: { backgroundColor: colors.backgroundWhite, borderWidth: 1, borderColor: colors.error },
+  declineConfirmButton: { backgroundColor: colors.error },
+  cancelButton: { backgroundColor: colors.backgroundWhite, borderWidth: 1, borderColor: colors.border },
+  primaryAction: { backgroundColor: colors.accent, flex: 0, marginBottom: theme.spacing.lg },
+  disabled: { opacity: 0.6 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: theme.spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: colors.backgroundWhite,
+    borderRadius: 12,
+    padding: theme.spacing.lg,
+  },
+  modalLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.xs,
+  },
+  modalInput: {
+    backgroundColor: colors.inputBg,
+    borderRadius: 6,
+    padding: theme.spacing.md,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    fontSize: theme.fontSize.md,
+    color: colors.text,
+    marginBottom: theme.spacing.md,
   },
   centerContent: {
     flex: 1,

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { jobsAPI, customersAPI, workersAPI } from '../api/client';
 import Layout from '../components/Layout';
 import { format } from 'date-fns';
@@ -7,8 +8,14 @@ import { useAuth } from '../context/AuthContext';
 import JobModal from '../components/JobModal';
 import { FaBriefcase, FaCalendarAlt, FaWrench } from 'react-icons/fa';
 
+// A job still needs someone when it has no technician and isn't finished (this includes
+// jobs a technician declined and jobs won through find-service bidding).
+export const needsTechnician = (job) =>
+    !job.worker_id && job.status !== 'completed' && job.status !== 'cancelled';
+
 const Jobs = () => {
     const { t } = useLanguage();
+    const [searchParams] = useSearchParams();
     const { organization } = useAuth();
     const industry = organization?.industry || 'hvac';
 
@@ -16,7 +23,7 @@ const Jobs = () => {
     const [customers, setCustomers] = useState([]);
     const [workers, setWorkers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState('all');
+    const [filter, setFilter] = useState(searchParams.get('filter') || 'all');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingJob, setEditingJob] = useState(null);
 
@@ -55,6 +62,10 @@ const Jobs = () => {
     const handleUpdateJob = async (jobData) => {
         try {
             await jobsAPI.update(editingJob.id, jobData);
+            // PUT /jobs/:id doesn't touch the technician; (re)assignment has its own endpoint.
+            if ((jobData.technician_id || null) !== (editingJob.worker_id || null)) {
+                await jobsAPI.assignTechnician(editingJob.id, jobData.technician_id || null);
+            }
             await loadData();
             setEditingJob(null);
         } catch (error) {
@@ -94,10 +105,14 @@ const Jobs = () => {
         }
     };
 
-    const filteredJobs = jobs.filter(job => filter === 'all' || job.status === filter);
+    const filteredJobs = jobs.filter(job =>
+        filter === 'all' || (filter === 'unassigned' ? needsTechnician(job) : job.status === filter)
+    );
+    const unassignedCount = jobs.filter(needsTechnician).length;
 
     const filterLabels = {
         all: t('jobs.filterAll'),
+        unassigned: t('jobs.filterUnassigned'),
         scheduled: t('status.scheduled'),
         in_progress: t('status.inProgress'),
         completed: t('status.completed'),
@@ -150,7 +165,7 @@ const Jobs = () => {
 
                 {/* Filters */}
                 <div className="mb-6 flex flex-wrap gap-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-2 w-fit">
-                    {['all', 'scheduled', 'in_progress', 'completed', 'cancelled'].map(status => (
+                    {['all', 'unassigned', 'scheduled', 'in_progress', 'completed', 'cancelled'].map(status => (
                         <button
                             key={status}
                             onClick={() => setFilter(status)}
@@ -161,6 +176,11 @@ const Jobs = () => {
                             }`}
                         >
                             {filterLabels[status]}
+                            {status === 'unassigned' && unassignedCount > 0 && (
+                                <span className="ms-1.5 inline-flex items-center justify-center min-w-[1.25rem] px-1 rounded-full bg-amber-500 text-white text-xs font-bold">
+                                    {unassignedCount}
+                                </span>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -279,7 +299,7 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
                     </span>
 
                     <select
-                        value={job.technician_id || ''}
+                        value={job.worker_id || ''}
                         onChange={(e) => onAssignTechnician(job.id, e.target.value ? parseInt(e.target.value) : null)}
                         className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-gray-300"
                     >
@@ -288,6 +308,8 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
                             <option key={tech.id} value={tech.id}>{tech.name}</option>
                         ))}
                     </select>
+
+                    <AssignmentBadge job={job} />
 
                     {job.status === 'scheduled' && (
                         <button
@@ -321,6 +343,47 @@ const JobItem = ({ job, technicians, onEdit, onDelete, onAssignTechnician, onUpd
                 </div>
             </div>
         </li>
+    );
+};
+
+// ─── AssignmentBadge ──────────────────────────────────────────────────────────
+// Where the job stands with its technician: offered (waiting), accepted, or needs someone
+// (optionally because a technician declined it).
+export const AssignmentBadge = ({ job }) => {
+    const { t } = useLanguage();
+    const tag = (cls, text, title) => (
+        <span title={title} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${cls}`}>
+            {text}
+        </span>
+    );
+    const fromBid = job.metadata?.source === 'service_request'
+        && tag('bg-indigo-50 text-indigo-700', t('jobs.fromBid'));
+
+    if (job.worker_id) {
+        const name = job.worker?.name || '';
+        return (
+            <>
+                {job.assignment_status === 'pending'
+                    ? tag('bg-gray-100 text-gray-600', `⏳ ${t('jobs.waitingFor', { name })}`)
+                    : tag('bg-emerald-50 text-emerald-700', `✓ ${t('jobs.accepted', { name })}`)}
+                {fromBid}
+            </>
+        );
+    }
+    if (!needsTechnician(job)) return fromBid || null;
+    return (
+        <>
+            {tag('bg-amber-50 text-amber-700', `⚠ ${t('jobs.needsTechnician')}`)}
+            {job.declined_by_name && tag(
+                'bg-red-50 text-red-700',
+                t('jobs.declinedBy', { name: job.declined_by_name }),
+                job.decline_reason ? t('jobs.declineReason', { reason: job.decline_reason }) : undefined,
+            )}
+            {job.decline_reason && (
+                <span className="text-xs text-red-600">{t('jobs.declineReason', { reason: job.decline_reason })}</span>
+            )}
+            {fromBid}
+        </>
     );
 };
 

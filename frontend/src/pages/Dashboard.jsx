@@ -27,6 +27,7 @@ import {
 import Layout from '../components/Layout';
 import { StatCardSkeleton, CardSkeleton } from '../components/Skeleton';
 import { customersAPI, dashboardAPI, jobsAPI, workersAPI } from '../api/client';
+import { needsTechnician } from './Jobs';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import ServiceCallModal from '../components/ServiceCallModal';
@@ -61,6 +62,7 @@ const Dashboard = () => {
         totalWorkers: 0,
     });
     const [todayJobs, setTodayJobs] = useState([]);
+    const [dispatch, setDispatch] = useState({ needsTechnician: 0, waiting: 0 });
     const [workers, setWorkers] = useState([]);
     const [allWorkers, setAllWorkers] = useState([]);
     const [customers, setCustomers] = useState([]);
@@ -90,6 +92,11 @@ const Dashboard = () => {
             const scheduledJobs = jobs.filter((j) => j.status === 'scheduled');
             const activeJobs = jobs.filter((j) => j.status === 'in_progress');
             const completedJobs = jobs.filter((j) => j.status === 'completed');
+            setDispatch({
+                needsTechnician: jobs.filter(needsTechnician).length,
+                waiting: jobs.filter((j) => j.worker_id && j.assignment_status === 'pending'
+                    && j.status !== 'completed' && j.status !== 'cancelled').length,
+            });
 
             if (!isConstruction) {
                 const now = new Date();
@@ -242,6 +249,28 @@ const Dashboard = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* ── Dispatch banner ─────────────────────────────────────── */}
+                    {(dispatch.needsTechnician > 0 || dispatch.waiting > 0) && (
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-testid="dispatch-banner">
+                            <div className="text-sm text-amber-900 space-y-0.5">
+                                {dispatch.needsTechnician > 0 && (
+                                    <p className="font-semibold">⚠ {t('dashboard.dispatchNeedsTechnician', { count: dispatch.needsTechnician })}</p>
+                                )}
+                                {dispatch.waiting > 0 && (
+                                    <p>⏳ {t('dashboard.dispatchWaiting', { count: dispatch.waiting })}</p>
+                                )}
+                            </div>
+                            {dispatch.needsTechnician > 0 && (
+                                <Link
+                                    to="/jobs?filter=unassigned"
+                                    className="inline-flex items-center justify-center rounded-xl bg-[#ff6b35] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+                                >
+                                    {t('dashboard.dispatchCta')}
+                                </Link>
+                            )}
+                        </div>
+                    )}
 
                     {/* ── Stat Cards ──────────────────────────────────────────── */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

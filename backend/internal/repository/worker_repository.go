@@ -16,6 +16,15 @@ func NewWorkerRepository(db *sql.DB) *WorkerRepository {
 	return &WorkerRepository{db: db}
 }
 
+// nullableJSON turns "no JSON" into SQL NULL. A nil []byte is otherwise sent as an empty
+// value, which Postgres rejects for a json/jsonb column ("invalid input syntax for type json").
+func nullableJSON(b []byte) interface{} {
+	if len(b) == 0 {
+		return nil
+	}
+	return string(b)
+}
+
 func (r *WorkerRepository) Create(worker *models.Worker) error {
 	query := `
 		INSERT INTO workers (
@@ -52,7 +61,7 @@ func (r *WorkerRepository) Create(worker *models.Worker) error {
 		worker.HomeLongitude,
 		worker.HomeGooglePlaceID,
 		worker.HomeFormattedAddress,
-		homeAddressComponentsJSON,
+		nullableJSON(homeAddressComponentsJSON),
 		worker.HomeGeocodedAt,
 		now,
 		now,
@@ -313,7 +322,7 @@ func (r *WorkerRepository) Update(worker *models.Worker) error {
 		worker.HomeLongitude,
 		worker.HomeGooglePlaceID,
 		worker.HomeFormattedAddress,
-		homeAddressComponentsJSON,
+		nullableJSON(homeAddressComponentsJSON),
 		worker.HomeGeocodedAt,
 		time.Now(),
 		worker.ID,

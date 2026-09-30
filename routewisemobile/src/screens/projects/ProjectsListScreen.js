@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { jobs, storage } from '../../services/api';
 import { colors, theme } from '../../theme/colors';
 import { useLanguage, useRTL } from '../../i18n/LanguageContext';
@@ -16,15 +16,19 @@ const ProjectsListScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  // Reload whenever the list comes back into view (e.g. after accepting/declining a job).
+  useFocusEffect(useCallback(() => {
     loadJobs();
-  }, []);
+  }, []));
 
   const loadJobs = async () => {
     try {
       setError(null);
       const response = await jobs.getMyJobs();
-      setJobsList(response || []);
+      // Offers waiting for an answer first.
+      const list = [...(response || [])];
+      list.sort((a, b) => (b.assignment_status === 'pending') - (a.assignment_status === 'pending'));
+      setJobsList(list);
     } catch (err) {
       console.error('Failed to load jobs:', err);
       setError(t('projects.loadFailed'));
@@ -68,6 +72,11 @@ const ProjectsListScreen = () => {
       style={styles.jobCard}
       onPress={() => navigation.navigate('ProjectDetail', { jobId: item.id })}
     >
+      {item.assignment_status === 'pending' && (
+        <View style={[styles.newBadge, rtl.isRTL && { alignSelf: 'flex-end' }]} testID={`new-${item.id}`}>
+          <Text style={styles.newBadgeText}>🔔 {t('projects.newRespond')}</Text>
+        </View>
+      )}
       <View style={[styles.jobHeader, rtl.row]}>
         <Text style={[styles.jobTitle, rtl.text]} numberOfLines={1}>
           {item.title || t('projects.jobNumber', { id: item.id })}
@@ -236,6 +245,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  newBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.accent,
+    borderRadius: 12,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 3,
+    marginBottom: theme.spacing.sm,
+  },
+  newBadgeText: {
+    color: colors.textWhite,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
   },
   jobHeader: {
     flexDirection: 'row',
