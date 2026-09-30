@@ -4,11 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ireuven89/routewise/internal/models"
 )
+
+// ErrJobNotFound: no job with that id in the organization (the service re-exports it, so
+// handlers can map it to 404 with errors.Is).
+var ErrJobNotFound = errors.New("job not found")
 
 /*type JobRepository interface {
 	CreateServiceCall(ctx context.Context, organizationID uint, request *models.CreateServiceCallRequest) (*models.CreateServiceCallResponse, error)
@@ -286,7 +291,7 @@ func scanJob(row rowScanner) (*models.Job, error) {
 func (r *JobRepository) FindByID(id uint, organizationID uint) (*models.Job, error) {
 	job, err := scanJob(r.db.QueryRow(jobSelect+` WHERE j.id = $1 AND j.organization_id = $2`, id, organizationID))
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("job not found")
+		return nil, ErrJobNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -378,7 +383,7 @@ func (r *JobRepository) Update(job *models.Job) error {
 	}
 
 	if rows == 0 {
-		return fmt.Errorf("job not found")
+		return ErrJobNotFound
 	}
 
 	return nil
@@ -412,7 +417,7 @@ func (r *JobRepository) AssignTechnician(jobID uint, organizationID uint, techni
 	}
 
 	if rows == 0 {
-		return fmt.Errorf("job not found")
+		return ErrJobNotFound
 	}
 
 	return nil
@@ -428,6 +433,30 @@ func (r *JobRepository) AcceptAssignment(jobID, organizationID, workerID uint) (
 		WHERE id = $2 AND organization_id = $3 AND technician_id = $4
 		  AND assignment_status = 'pending' AND status NOT IN ('cancelled', 'completed')
 	`, now, jobID, organizationID, workerID)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	return rows > 0, err
+}
+
+// UpdateStatusAsWorker moves a technician's accepted job from one status to the next, only
+// if it is still in the expected status (so a concurrent cancel by the owner wins).
+// false means the job wasn't this worker's accepted job in status `from`.
+func (r *JobRepository) UpdateStatusAsWorker(jobID, organizationID, workerID uint, from, to models.JobStatus) (bool, error) {
+	now := time.Now()
+	// completed_at gets its own parameter: reusing $1 in a comparison makes Postgres deduce
+	// conflicting types for it (text vs varchar).
+	var completedAt *time.Time
+	if to == models.StatusCompleted {
+		completedAt = &now
+	}
+	result, err := r.db.Exec(`
+		UPDATE jobs
+		SET status = $1, updated_at = $2, completed_at = COALESCE($7, completed_at)
+		WHERE id = $3 AND organization_id = $4 AND technician_id = $5
+		  AND assignment_status = 'accepted' AND status = $6
+	`, to, now, jobID, organizationID, workerID, from, completedAt)
 	if err != nil {
 		return false, err
 	}
@@ -477,7 +506,7 @@ func (r *JobRepository) UpdateStatus(jobID uint, organizationID uint, status mod
 		}
 
 		if rows == 0 {
-			return fmt.Errorf("job not found")
+			return ErrJobNotFound
 		}
 
 		return nil
@@ -494,7 +523,7 @@ func (r *JobRepository) UpdateStatus(jobID uint, organizationID uint, status mod
 	}
 
 	if rows == 0 {
-		return fmt.Errorf("job not found")
+		return ErrJobNotFound
 	}
 
 	return nil
@@ -514,7 +543,7 @@ func (r *JobRepository) Delete(id uint, organizationID uint) error {
 	}
 
 	if rows == 0 {
-		return fmt.Errorf("job not found")
+		return ErrJobNotFound
 	}
 
 	return nil
@@ -627,7 +656,7 @@ func (r *JobRepository) AddPhoto(jobID uint, organizationID uint, url string, de
 		return err
 	}
 	if !exists {
-		return fmt.Errorf("job not found")
+		return ErrJobNotFound
 	}
 
 	query := `
@@ -648,7 +677,7 @@ func (r *JobRepository) GetPhotos(jobID uint, organizationID uint) ([]map[string
 		return nil, err
 	}
 	if !exists {
-		return nil, fmt.Errorf("job not found")
+		return nil, ErrJobNotFound
 	}
 
 	query := `
@@ -699,7 +728,7 @@ func (r *JobRepository) AddPart(jobID uint, organizationID uint, name string, qu
 		return err
 	}
 	if !exists {
-		return fmt.Errorf("job not found")
+		return ErrJobNotFound
 	}
 
 	query := `
@@ -720,7 +749,7 @@ func (r *JobRepository) GetParts(jobID uint, organizationID uint) ([]map[string]
 		return nil, err
 	}
 	if !exists {
-		return nil, fmt.Errorf("job not found")
+		return nil, ErrJobNotFound
 	}
 
 	query := `
@@ -774,7 +803,7 @@ func (r *JobRepository) AddNote(jobID uint, organizationID uint, createdBy uint,
 		return err
 	}
 	if !exists {
-		return fmt.Errorf("job not found")
+		return ErrJobNotFound
 	}
 
 	query := `
@@ -795,7 +824,7 @@ func (r *JobRepository) GetNotes(jobID uint, organizationID uint) ([]map[string]
 		return nil, err
 	}
 	if !exists {
-		return nil, fmt.Errorf("job not found")
+		return nil, ErrJobNotFound
 	}
 
 	query := `
