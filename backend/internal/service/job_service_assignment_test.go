@@ -380,16 +380,33 @@ func TestJobSvc_UpdateStatusAsWorker(t *testing.T) {
 		name      string
 		job       *jobState
 		status    string
+		execRows  *int64 // nil => 1
 		wantErr   error
 		wantExec  bool
 		wantInSQL string
+		wantFrom  models.JobStatus
 	}{
 		{name: "start accepted job",
 			job: &jobState{technicianID: uintPtr(testWorkerID), assignment: accepted}, status: "in_progress",
-			wantExec: true, wantInSQL: "SET status = $1, updated_at = $2"},
+			wantExec: true, wantInSQL: "SET status = $1, updated_at = $2", wantFrom: models.StatusScheduled},
 		{name: "complete accepted job sets completed_at",
 			job: &jobState{technicianID: uintPtr(testWorkerID), assignment: accepted, status: models.StatusInProgress}, status: "completed",
-			wantExec: true, wantInSQL: "completed_at"},
+			wantExec: true, wantInSQL: "completed_at = COALESCE($7, completed_at)", wantFrom: models.StatusInProgress},
+		{name: "cannot complete a job that was never started",
+			job: &jobState{technicianID: uintPtr(testWorkerID), assignment: accepted}, status: "completed", wantErr: ErrInvalidTransition},
+		{name: "cannot start a job twice",
+			job: &jobState{technicianID: uintPtr(testWorkerID), assignment: accepted, status: models.StatusInProgress}, status: "in_progress", wantErr: ErrInvalidTransition},
+		{name: "cannot reopen a completed job",
+			job: &jobState{technicianID: uintPtr(testWorkerID), assignment: accepted, status: models.StatusCompleted}, status: "in_progress", wantErr: ErrInvalidTransition},
+		{name: "cannot complete a completed job again",
+			job: &jobState{technicianID: uintPtr(testWorkerID), assignment: accepted, status: models.StatusCompleted}, status: "completed", wantErr: ErrInvalidTransition},
+		{name: "cannot start a cancelled job",
+			job: &jobState{technicianID: uintPtr(testWorkerID), assignment: accepted, status: models.StatusCancelled}, status: "in_progress", wantErr: ErrInvalidTransition},
+		{name: "cannot complete a cancelled job",
+			job: &jobState{technicianID: uintPtr(testWorkerID), assignment: accepted, status: models.StatusCancelled}, status: "completed", wantErr: ErrInvalidTransition},
+		{name: "status changed between read and update (0 rows), e.g. owner cancelled",
+			job: &jobState{technicianID: uintPtr(testWorkerID), assignment: accepted}, status: "in_progress", execRows: new(int64),
+			wantExec: true, wantInSQL: "AND status = $6", wantFrom: models.StatusScheduled, wantErr: ErrInvalidTransition},
 		{name: "pending offer must be accepted first",
 			job: &jobState{technicianID: uintPtr(testWorkerID), assignment: pending}, status: "in_progress", wantErr: ErrMustAcceptFirst},
 		{name: "no assignment status must be accepted first",
@@ -408,6 +425,9 @@ func TestJobSvc_UpdateStatusAsWorker(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			st := &jobDBState{execRows: 1}
+			if tt.execRows != nil {
+				st.execRows = *tt.execRows
+			}
 			if tt.job != nil {
 				st.jobRow = tt.job.row(testJobID, testOrgID)
 			}
@@ -433,9 +453,41 @@ func TestJobSvc_UpdateStatusAsWorker(t *testing.T) {
 				if e.args[0] != tt.status {
 					t.Errorf("status arg = %v, want %s", e.args[0], tt.status)
 				}
+				// the update is guarded by job, org, worker and the expected current status
+				if e.args[2] != int64(testJobID) || e.args[3] != int64(testOrgID) ||
+					e.args[4] != int64(testWorkerID) || e.args[5] != string(tt.wantFrom) {
+					t.Errorf("update args = %v", e.args)
+				}
 			}
 			if errors.Is(tt.wantErr, ErrInvalidStatus) && len(st.queries) != 0 {
 				t.Error("invalid status should be rejected before loading the job")
+			}
+		})
+	}
+}
+
+// Owner UpdateStatus: a missing job surfaces as ErrJobNotFound (-> 404), not a raw error.
+func TestJobSvc_UpdateStatus_MissingJobIsNotFound(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   string
+		execRows int64
+		wantErr  error
+	}{
+		{name: "existing job", status: "cancelled", execRows: 1},
+		{name: "missing job", status: "cancelled", execRows: 0, wantErr: ErrJobNotFound},
+		{name: "missing job, completing", status: "completed", execRows: 0, wantErr: ErrJobNotFound},
+		{name: "invalid status", status: "done", wantErr: ErrInvalidStatus},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := newJobSvcWithFakeDB(t, &jobDBState{execRows: tt.execRows}, nil)
+			err := svc.UpdateStatus(testJobID, testOrgID, tt.status)
+			if tt.wantErr == nil && err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			if tt.wantErr != nil && !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
 		})
 	}

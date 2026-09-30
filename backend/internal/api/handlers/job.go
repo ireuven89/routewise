@@ -283,6 +283,8 @@ func (h *JobHandler) UpdateStatus(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
 		case errors.Is(err, service.ErrMustAcceptFirst):
 			c.JSON(http.StatusConflict, gin.H{"error": "Accept the job first"})
+		case errors.Is(err, service.ErrInvalidTransition):
+			c.JSON(http.StatusConflict, gin.H{"error": "Job status does not allow this change"})
 		default:
 			sentry.CaptureException(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})

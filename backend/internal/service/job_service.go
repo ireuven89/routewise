@@ -11,7 +11,8 @@ import (
 )
 
 var (
-	ErrJobNotFound   = errors.New("job not found")
+	// ErrJobNotFound is the repository's sentinel, so "not found" from either layer matches.
+	ErrJobNotFound   = repository.ErrJobNotFound
 	ErrInvalidStatus = errors.New("invalid status")
 	// ErrInvalidTechnician: the technician doesn't exist in this organization or is inactive.
 	ErrInvalidTechnician = errors.New("invalid technician")
@@ -19,12 +20,15 @@ var (
 	ErrInvalidAssignmentState = errors.New("job is not in a state that allows this")
 	// ErrMustAcceptFirst: a technician tried to work on a job they haven't accepted.
 	ErrMustAcceptFirst = errors.New("accept the job first")
+	// ErrInvalidTransition: a technician tried a status change their job's current status doesn't allow.
+	ErrInvalidTransition = errors.New("job status does not allow this change")
 )
 
 // Statuses a technician may move their own job to (owners can set any valid status).
-var workerSettableStatuses = map[models.JobStatus]bool{
-	models.StatusInProgress: true,
-	models.StatusCompleted:  true,
+// Maps each status a technician may set to the status the job must currently be in.
+var workerSettableStatuses = map[models.JobStatus]models.JobStatus{
+	models.StatusInProgress: models.StatusScheduled,
+	models.StatusCompleted:  models.StatusInProgress,
 }
 
 // workerLookup is the part of the worker repository the job service needs.
@@ -211,7 +215,8 @@ func (s *JobSvc) GetByIDForWorker(id, organizationID, workerID uint) (*models.Jo
 // UpdateStatusAsWorker lets a technician start/complete their own job, but only after accepting it.
 func (s *JobSvc) UpdateStatusAsWorker(id, organizationID, workerID uint, status string) error {
 	jobStatus := models.JobStatus(status)
-	if !workerSettableStatuses[jobStatus] {
+	from, ok := workerSettableStatuses[jobStatus]
+	if !ok {
 		return ErrInvalidStatus
 	}
 	job, err := s.GetByIDForWorker(id, organizationID, workerID)
@@ -221,7 +226,17 @@ func (s *JobSvc) UpdateStatusAsWorker(id, organizationID, workerID uint, status 
 	if job.AssignmentStatus == nil || *job.AssignmentStatus != models.AssignmentAccepted {
 		return ErrMustAcceptFirst
 	}
-	return s.repo.UpdateStatus(id, organizationID, jobStatus)
+	if job.Status != from {
+		return ErrInvalidTransition
+	}
+	updated, err := s.repo.UpdateStatusAsWorker(id, organizationID, workerID, from, jobStatus)
+	if err != nil {
+		return err
+	}
+	if !updated { // changed underneath us, e.g. the owner cancelled it
+		return ErrInvalidTransition
+	}
+	return nil
 }
 
 func (s *JobSvc) AcceptJob(id, organizationID, workerID uint) error {

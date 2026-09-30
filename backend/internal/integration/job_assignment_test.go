@@ -271,3 +271,41 @@ func TestJobAssignment_DeclineWithoutReasonAndCrossOrg(t *testing.T) {
 		t.Fatalf("empty reason stored as %q, want NULL", r.declineReason.String)
 	}
 }
+
+func TestJobAssignment_TechnicianStatusTransitions(t *testing.T) {
+	owner := registerProvider(t, "Transitions HVAC", 32.08, 34.78)
+	tech := addTechnician(t, owner.orgID, "Avi")
+	customerID := addCustomer(t, owner.orgID)
+	accept := func(jobID uint) {
+		t.Helper()
+		expectStatus(t, doJSON(t, http.MethodPost, fmt.Sprintf("/jobs/%d/accept", jobID), tech.token, nil, nil),
+			http.StatusOK, "accept")
+	}
+
+	// scheduled -> in_progress -> completed is the only path; everything else is a conflict.
+	jobID := createAssignedJob(t, owner, customerID, &tech.id)
+	accept(jobID)
+	expectStatus(t, setStatus(t, tech.token, jobID, "completed"), http.StatusConflict, "complete before start")
+	expectStatus(t, setStatus(t, tech.token, jobID, "in_progress"), http.StatusOK, "start")
+	expectStatus(t, setStatus(t, tech.token, jobID, "in_progress"), http.StatusConflict, "start twice")
+	expectStatus(t, setStatus(t, tech.token, jobID, "completed"), http.StatusOK, "complete")
+	expectStatus(t, setStatus(t, tech.token, jobID, "in_progress"), http.StatusConflict, "reopen completed job")
+	expectStatus(t, setStatus(t, tech.token, jobID, "completed"), http.StatusConflict, "complete twice")
+	if r := loadAssignment(t, jobID); r.status != "completed" || !r.completedAt.Valid {
+		t.Fatalf("after refused changes: status=%s completed_at=%v", r.status, r.completedAt)
+	}
+
+	// A job the owner cancelled can't be worked on.
+	cancelled := createAssignedJob(t, owner, customerID, &tech.id)
+	accept(cancelled)
+	expectStatus(t, setStatus(t, owner.token, cancelled, "cancelled"), http.StatusOK, "owner cancels")
+	expectStatus(t, setStatus(t, tech.token, cancelled, "in_progress"), http.StatusConflict, "start cancelled job")
+	expectStatus(t, setStatus(t, tech.token, cancelled, "completed"), http.StatusConflict, "complete cancelled job")
+	if r := loadAssignment(t, cancelled); r.status != "cancelled" {
+		t.Fatalf("cancelled job status changed to %s", r.status)
+	}
+
+	// Owners can still set any status, and a missing job is a 404 rather than a 500.
+	expectStatus(t, setStatus(t, owner.token, cancelled, "scheduled"), http.StatusOK, "owner reopens")
+	expectStatus(t, setStatus(t, owner.token, 999999, "cancelled"), http.StatusNotFound, "owner updates missing job")
+}
