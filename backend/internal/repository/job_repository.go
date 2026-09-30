@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -65,12 +66,17 @@ func (r *JobRepository) CreateServiceCall(ctx context.Context, organizationID ui
 	}
 
 	job := &models.Job{
-		OrganizationID: organizationID,
-		CustomerID:     customer.ID,
-		Title:          request.Job.Title,
-		Description:    request.Job.Description,
-		ScheduledAt:    request.Job.ScheduledDate,
-		Status:         models.JobStatus(request.Job.Status),
+		OrganizationID:  organizationID,
+		CustomerID:      customer.ID,
+		Title:           request.Job.Title,
+		Description:     request.Job.Description,
+		ScheduledAt:     request.Job.ScheduledDate,
+		Status:          models.JobStatus(request.Job.Status),
+		DurationMinutes: DefaultJobDurationMinutes,
+	}
+	if request.Job.CreatedBy != 0 {
+		createdBy := request.Job.CreatedBy
+		job.CreatedBy = &createdBy
 	}
 
 	if request.TechnicianID != nil {
@@ -96,13 +102,27 @@ func (r *JobRepository) CreateServiceCall(ctx context.Context, organizationID ui
 
 }
 
+// DefaultJobDurationMinutes is used when a job is created without a duration.
+const DefaultJobDurationMinutes = 60
+
+// setInitialAssignment offers a newly created job to its technician: pending until they accept.
+func setInitialAssignment(job *models.Job) {
+	if job.TechnicianID != nil {
+		pending := models.AssignmentPending
+		job.AssignmentStatus = &pending
+	} else {
+		job.AssignmentStatus = nil
+	}
+}
+
 func (r *JobRepository) CreateTx(ctx context.Context, tx *sql.Tx, job *models.Job) (*uint, error) {
 	query := `
-		INSERT INTO jobs (organization_id, created_by, customer_id, technician_id, title, description, status, scheduled_at, duration_minutes, price, metadata, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		INSERT INTO jobs (organization_id, created_by, customer_id, technician_id, title, description, status, scheduled_at, duration_minutes, price, metadata, created_at, updated_at, assignment_status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id
 	`
 
+	setInitialAssignment(job)
 	now := time.Now()
 	err := tx.QueryRowContext(ctx,
 		query,
@@ -119,6 +139,7 @@ func (r *JobRepository) CreateTx(ctx context.Context, tx *sql.Tx, job *models.Jo
 		job.Metadata,
 		now,
 		now,
+		job.AssignmentStatus,
 	).Scan(&job.ID)
 
 	if err != nil {
@@ -133,11 +154,12 @@ func (r *JobRepository) CreateTx(ctx context.Context, tx *sql.Tx, job *models.Jo
 
 func (r *JobRepository) Create(job *models.Job) error {
 	query := `
-		INSERT INTO jobs (organization_id, created_by, customer_id, technician_id, title, description, status, scheduled_at, duration_minutes, price, metadata, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		INSERT INTO jobs (organization_id, created_by, customer_id, technician_id, title, description, status, scheduled_at, duration_minutes, price, metadata, created_at, updated_at, assignment_status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id
 	`
 
+	setInitialAssignment(job)
 	now := time.Now()
 	err := r.db.QueryRow(
 		query,
@@ -154,6 +176,7 @@ func (r *JobRepository) Create(job *models.Job) error {
 		job.Metadata,
 		now,
 		now,
+		job.AssignmentStatus,
 	).Scan(&job.ID)
 
 	if err != nil {
@@ -165,46 +188,51 @@ func (r *JobRepository) Create(job *models.Job) error {
 	return nil
 }
 
-func (r *JobRepository) FindByID(id uint, organizationID uint) (*models.Job, error) {
-	query := `
-		SELECT id, organization_id, created_by, customer_id, technician_id, title, description, status,
-		       scheduled_at, completed_at, duration_minutes, price, metadata, created_at, updated_at
-		FROM jobs
-		WHERE id = $1 AND organization_id = $2
-	`
+// jobSelect loads a job together with its customer, its assigned technician and the name of
+// whoever last declined it. Columns are qualified because the joined tables share names.
+const jobSelect = `
+	SELECT j.id, j.organization_id, j.created_by, j.customer_id, j.technician_id, j.title,
+	       COALESCE(j.description, ''), j.status, j.scheduled_at, j.completed_at, j.duration_minutes,
+	       j.price, j.metadata, j.created_at, j.updated_at,
+	       j.assignment_status, j.assignment_responded_at, j.declined_by_worker_id,
+	       COALESCE(j.decline_reason, ''), j.declined_at,
+	       c.id, COALESCE(c.name, ''), COALESCE(c.phone, ''), COALESCE(c.email, ''),
+	       COALESCE(c.address, ''), c.latitude, c.longitude, COALESCE(c.formatted_address, ''),
+	       w.id, COALESCE(w.name, ''), COALESCE(w.phone, ''),
+	       COALESCE(dw.name, '')
+	FROM jobs j
+	LEFT JOIN customers c ON c.id = j.customer_id AND c.organization_id = j.organization_id
+	LEFT JOIN workers w ON w.id = j.technician_id
+	LEFT JOIN workers dw ON dw.id = j.declined_by_worker_id
+`
 
+type rowScanner interface {
+	Scan(dest ...interface{}) error
+}
+
+func scanJob(row rowScanner) (*models.Job, error) {
 	job := &models.Job{}
-	var technicianID, createdBy sql.NullInt64
-	var completedAt sql.NullTime
-	var price sql.NullFloat64
-	var metadata sql.NullString
+	var technicianID, createdBy, declinedBy, customerID, workerID sql.NullInt64
+	var completedAt, respondedAt, declinedAt sql.NullTime
+	var price, custLat, custLng sql.NullFloat64
+	var metadata []byte
+	var assignmentStatus sql.NullString
+	var worker models.Worker
 
-	err := r.db.QueryRow(query, id, organizationID).Scan(
-		&job.ID,
-		&job.OrganizationID,
-		&createdBy,
-		&job.CustomerID,
-		&technicianID,
-		&job.Title,
-		&job.Description,
-		&job.Status,
-		&job.ScheduledAt,
-		&completedAt,
-		&job.DurationMinutes,
-		&price,
-		&metadata,
-		&job.CreatedAt,
-		&job.UpdatedAt,
+	err := row.Scan(
+		&job.ID, &job.OrganizationID, &createdBy, &job.CustomerID, &technicianID, &job.Title,
+		&job.Description, &job.Status, &job.ScheduledAt, &completedAt, &job.DurationMinutes,
+		&price, &metadata, &job.CreatedAt, &job.UpdatedAt,
+		&assignmentStatus, &respondedAt, &declinedBy, &job.DeclineReason, &declinedAt,
+		&customerID, &job.Customer.Name, &job.Customer.Phone, &job.Customer.Email,
+		&job.Customer.Address, &custLat, &custLng, &job.Customer.FormattedAddress,
+		&workerID, &worker.Name, &worker.Phone,
+		&job.DeclinedByName,
 	)
-
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("job not found")
-	}
 	if err != nil {
 		return nil, err
 	}
 
-	// Handle nullable fields
 	if createdBy.Valid {
 		cb := uint(createdBy.Int64)
 		job.CreatedBy = &cb
@@ -219,17 +247,55 @@ func (r *JobRepository) FindByID(id uint, organizationID uint) (*models.Job, err
 	if price.Valid {
 		job.Price = &price.Float64
 	}
+	if len(metadata) > 0 {
+		// Best effort: a malformed blob shouldn't make the whole job unreadable.
+		_ = json.Unmarshal(metadata, &job.Metadata)
+	}
+	if assignmentStatus.Valid {
+		s := models.AssignmentStatus(assignmentStatus.String)
+		job.AssignmentStatus = &s
+	}
+	if respondedAt.Valid {
+		job.AssignmentRespondedAt = &respondedAt.Time
+	}
+	if declinedBy.Valid {
+		d := uint(declinedBy.Int64)
+		job.DeclinedByWorkerID = &d
+	}
+	if declinedAt.Valid {
+		job.DeclinedAt = &declinedAt.Time
+	}
+	if customerID.Valid {
+		job.Customer.ID = uint(customerID.Int64)
+		job.Customer.OrganizationID = job.OrganizationID
+	}
+	if custLat.Valid {
+		job.Customer.Latitude = &custLat.Float64
+	}
+	if custLng.Valid {
+		job.Customer.Longitude = &custLng.Float64
+	}
+	if workerID.Valid {
+		worker.ID = uint(workerID.Int64)
+		worker.OrganizationID = job.OrganizationID
+		job.Worker = &worker
+	}
+	return job, nil
+}
 
+func (r *JobRepository) FindByID(id uint, organizationID uint) (*models.Job, error) {
+	job, err := scanJob(r.db.QueryRow(jobSelect+` WHERE j.id = $1 AND j.organization_id = $2`, id, organizationID))
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("job not found")
+	}
+	if err != nil {
+		return nil, err
+	}
 	return job, nil
 }
 
 func (r *JobRepository) FindAll(organizationID uint, filters map[string]interface{}, sortBy string) ([]*models.Job, error) {
-	query := `
-		SELECT id, organization_id, created_by, customer_id, technician_id, title, description, status,
-		       scheduled_at, completed_at, duration_minutes, price, metadata, created_at, updated_at
-		FROM jobs
-		WHERE organization_id = $1
-	`
+	query := jobSelect + ` WHERE j.organization_id = $1`
 
 	args := []interface{}{organizationID}
 	paramCount := 1
@@ -237,30 +303,30 @@ func (r *JobRepository) FindAll(organizationID uint, filters map[string]interfac
 	// Apply filters
 	if status, ok := filters["status"]; ok {
 		paramCount++
-		query += fmt.Sprintf(" AND status = $%d", paramCount)
+		query += fmt.Sprintf(" AND j.status = $%d", paramCount)
 		args = append(args, status)
 	}
 
 	if techID, ok := filters["technician_id"]; ok {
 		paramCount++
-		query += fmt.Sprintf(" AND technician_id = $%d", paramCount)
+		query += fmt.Sprintf(" AND j.technician_id = $%d", paramCount)
 		args = append(args, techID)
 	}
 
 	if date, ok := filters["scheduled_date"]; ok {
 		paramCount++
-		query += fmt.Sprintf(" AND DATE(scheduled_at) = $%d", paramCount)
+		query += fmt.Sprintf(" AND DATE(j.scheduled_at) = $%d", paramCount)
 		args = append(args, date)
 	}
 
 	// Add sorting
 	switch sortBy {
 	case "scheduled_at":
-		query += " ORDER BY scheduled_at ASC"
+		query += " ORDER BY j.scheduled_at ASC"
 	case "status":
-		query += " ORDER BY status ASC, scheduled_at ASC"
+		query += " ORDER BY j.status ASC, j.scheduled_at ASC"
 	default:
-		query += " ORDER BY created_at DESC"
+		query += " ORDER BY j.created_at DESC"
 	}
 
 	rows, err := r.db.Query(query, args...)
@@ -270,56 +336,14 @@ func (r *JobRepository) FindAll(organizationID uint, filters map[string]interfac
 	defer rows.Close()
 
 	jobs := []*models.Job{}
-
 	for rows.Next() {
-		job := &models.Job{}
-		var technicianID, createdBy sql.NullInt64
-		var completedAt sql.NullTime
-		var price sql.NullFloat64
-		var metadata sql.NullString
-
-		err := rows.Scan(
-			&job.ID,
-			&job.OrganizationID,
-			&createdBy,
-			&job.CustomerID,
-			&technicianID,
-			&job.Title,
-			&job.Description,
-			&job.Status,
-			&job.ScheduledAt,
-			&completedAt,
-			&job.DurationMinutes,
-			&price,
-			&metadata,
-			&job.CreatedAt,
-			&job.UpdatedAt,
-		)
-
+		job, err := scanJob(rows)
 		if err != nil {
 			return nil, err
 		}
-
-		// Handle nullable fields
-		if createdBy.Valid {
-			cb := uint(createdBy.Int64)
-			job.CreatedBy = &cb
-		}
-		if technicianID.Valid {
-			tid := uint(technicianID.Int64)
-			job.TechnicianID = &tid
-		}
-		if completedAt.Valid {
-			job.CompletedAt = &completedAt.Time
-		}
-		if price.Valid {
-			job.Price = &price.Float64
-		}
-
 		jobs = append(jobs, job)
 	}
-
-	return jobs, nil
+	return jobs, rows.Err()
 }
 
 func (r *JobRepository) Update(job *models.Job) error {
@@ -360,10 +384,20 @@ func (r *JobRepository) Update(job *models.Job) error {
 	return nil
 }
 
+// AssignTechnician (re)assigns a job. A different technician gets it as a new pending offer;
+// re-assigning the same one keeps their answer; unassigning clears the offer.
+// (All SET expressions see the row's old values, so technician_id is compared before it changes.)
 func (r *JobRepository) AssignTechnician(jobID uint, organizationID uint, technicianID *uint) error {
 	query := `
 		UPDATE jobs
-		SET technician_id = $1, updated_at = $2
+		SET assignment_status = CASE
+		        WHEN $1::int IS NULL THEN NULL
+		        WHEN technician_id IS NOT DISTINCT FROM $1::int THEN assignment_status
+		        ELSE 'pending' END,
+		    assignment_responded_at = CASE
+		        WHEN technician_id IS NOT DISTINCT FROM $1::int THEN assignment_responded_at
+		        ELSE NULL END,
+		    technician_id = $1, updated_at = $2
 		WHERE id = $3 AND organization_id = $4
 	`
 
@@ -382,6 +416,40 @@ func (r *JobRepository) AssignTechnician(jobID uint, organizationID uint, techni
 	}
 
 	return nil
+}
+
+// AcceptAssignment marks a pending offer as accepted. The WHERE clause re-checks ownership and
+// state so a concurrent reassign/decline can't be overwritten; false means nothing matched.
+func (r *JobRepository) AcceptAssignment(jobID, organizationID, workerID uint) (bool, error) {
+	now := time.Now()
+	result, err := r.db.Exec(`
+		UPDATE jobs
+		SET assignment_status = 'accepted', assignment_responded_at = $1, updated_at = $1
+		WHERE id = $2 AND organization_id = $3 AND technician_id = $4
+		  AND assignment_status = 'pending' AND status NOT IN ('cancelled', 'completed')
+	`, now, jobID, organizationID, workerID)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	return rows > 0, err
+}
+
+// DeclineAssignment hands a scheduled job back to the unassigned pool and records who
+// declined and why. false means the job wasn't this worker's scheduled job.
+func (r *JobRepository) DeclineAssignment(jobID, organizationID, workerID uint, reason string) (bool, error) {
+	now := time.Now()
+	result, err := r.db.Exec(`
+		UPDATE jobs
+		SET technician_id = NULL, assignment_status = NULL, assignment_responded_at = NULL,
+		    declined_by_worker_id = $1, decline_reason = NULLIF($2, ''), declined_at = $3, updated_at = $3
+		WHERE id = $4 AND organization_id = $5 AND technician_id = $1 AND status = 'scheduled'
+	`, workerID, reason, now, jobID, organizationID)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	return rows > 0, err
 }
 
 func (r *JobRepository) UpdateStatus(jobID uint, organizationID uint, status models.JobStatus) error {

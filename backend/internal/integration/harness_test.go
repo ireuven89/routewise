@@ -153,7 +153,7 @@ func newRouter(db *sql.DB) *gin.Engine {
 	serviceRequestNotificationRepo := repository.NewServiceRequestNotificationRepository(db)
 
 	authService := service.NewAuthService(workerRepo, otpRepo, userRepo, orgRepo)
-	jobService := service.NewJobService(jobRepo)
+	jobService := service.NewJobService(jobRepo, workerRepo)
 	customerService := service.NewCustomerService(customerRepo, service.NewGeocodingService(""))
 	providerService := service.NewProviderService(orgRepo)
 	serviceRequestService := service.NewServiceRequestService(

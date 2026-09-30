@@ -36,6 +36,9 @@ const he = {
 
     // ─── Dashboard ──────────────────────────────────────────────────────────
     dashboard: {
+        dispatchNeedsTechnician: '{{count}} עבודות ממתינות לשיבוץ טכנאי',
+        dispatchWaiting: '{{count}} ממתינות לאישור הטכנאי',
+        dispatchCta: 'שבצו עכשיו',
         title: 'לוח בקרה',
         welcome: 'שלום,',
         companyCodeLabel: 'קוד החברה',
@@ -225,6 +228,13 @@ const he = {
         cancel: 'ביטול',
         updateJob: 'עדכון עבודה',
         createJobBtn: 'יצירת עבודה',
+        filterUnassigned: 'לא משובצות',
+        needsTechnician: 'צריך טכנאי',
+        waitingFor: 'ממתין לאישור של {{name}}',
+        accepted: 'אושר על ידי {{name}}',
+        declinedBy: 'נדחה על ידי {{name}}',
+        declineReason: 'סיבה: {{reason}}',
+        fromBid: 'מהצעת מחיר',
     },
 
     // ─── Service Call ─────────────────────────────────────────────────────────

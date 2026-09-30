@@ -15,6 +15,15 @@ const (
 	StatusCancelled  JobStatus = "cancelled"
 )
 
+// AssignmentStatus is the technician's response to being assigned a job.
+// nil on a Job means no technician is assigned.
+type AssignmentStatus string
+
+const (
+	AssignmentPending  AssignmentStatus = "pending"
+	AssignmentAccepted AssignmentStatus = "accepted"
+)
+
 type Job struct {
 	ID              uint       `json:"id" gorm:"primaryKey"`
 	OrganizationID  uint       `json:"organization_id" gorm:"not null"`
@@ -33,6 +42,15 @@ type Job struct {
 	UpdatedAt       time.Time  `json:"updated_at"`
 	Customer        Customer   `json:"customer" gorm:"foreignKey:CustomerID"`
 	Worker          *Worker    `json:"worker,omitempty" gorm:"foreignKey:workerID"`
+
+	// Technician's response to the assignment (see AssignmentStatus).
+	AssignmentStatus      *AssignmentStatus `json:"assignment_status"`
+	AssignmentRespondedAt *time.Time        `json:"assignment_responded_at"`
+	// Last decline, kept after the job goes back to unassigned.
+	DeclinedByWorkerID *uint      `json:"declined_by_worker_id"`
+	DeclinedByName     string     `json:"declined_by_name,omitempty"`
+	DeclineReason      string     `json:"decline_reason,omitempty"`
+	DeclinedAt         *time.Time `json:"declined_at"`
 }
 
 type MonthlyRevenue struct {

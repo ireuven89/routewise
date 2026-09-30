@@ -66,7 +66,7 @@ func main() {
 	geocodingService := service.NewGeocodingService(googleMapsAPIKey)
 
 	workerService := service.NewWorkerService(workerRepo, geocodingService)
-	jobService := service.NewJobService(jobRepo)
+	jobService := service.NewJobService(jobRepo, workerRepo)
 	customerService := service.NewCustomerService(customerRepo, geocodingService)
 	providerService := service.NewProviderService(orgRepo)
 	frontendBaseURL := os.Getenv("FRONTEND_BASE_URL")

@@ -85,6 +85,18 @@ export const jobs = {
     return response.data;
   },
 
+  // Respond to a job the owner assigned: accept it (then it can be started) or decline it
+  // (it goes back to the owner's unassigned list).
+  accept: async (jobId) => {
+    const response = await api.post(`/jobs/${jobId}/accept`);
+    return response.data;
+  },
+
+  decline: async (jobId, reason) => {
+    const response = await api.post(`/jobs/${jobId}/decline`, { reason: reason || '' });
+    return response.data;
+  },
+
   // Get job files
   getFiles: async (jobId) => {
     const response = await api.get(`/projects/${jobId}/files`);
